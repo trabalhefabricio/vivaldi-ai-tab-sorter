@@ -14,7 +14,6 @@ REQUIRED_FILES=(
   "popup.js"
   "background.js"
   "ai_bridge.js"
-  "bridge_listener.js"
   "icons/icon16.png"
   "icons/icon48.png"
   "icons/icon128.png"
@@ -64,7 +63,7 @@ echo "🔧 Checking JavaScript syntax..."
 
 # Check JavaScript files for basic syntax errors
 if command -v node >/dev/null 2>&1; then
-  for jsfile in popup.js background.js ai_bridge.js bridge_listener.js; do
+  for jsfile in popup.js background.js ai_bridge.js; do
     if node -c "$jsfile" 2>/dev/null; then
       echo "  ✓ $jsfile syntax is valid"
     else
