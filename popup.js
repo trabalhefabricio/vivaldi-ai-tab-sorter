@@ -772,7 +772,7 @@ Return ONLY the JSON array, nothing else.`;
   
   async applyWorkspaceMode() {
     // Send message to background script to handle workspace creation
-    // This requires the bridge script in Vivaldi
+    // Now supports both Chrome Extensions API (no bridge required) and bridge fallback
     try {
       console.log('Requesting workspace organization...');
       
@@ -787,13 +787,22 @@ Return ONLY the JSON array, nothing else.`;
         throw new Error(errorMsg);
       }
       
-      console.log('Workspace organization successful');
+      console.log('Workspace organization successful via', response.method || 'unknown method');
+      
+      // Show helpful message about which method was used
+      if (response.method === 'extensionsAPI') {
+        console.log('✓ Organized using Chrome Extensions API (no bridge required)');
+        console.log(response.message || `Created ${response.windowsCreated || 0} workspace windows`);
+      } else if (response.method === 'bridge') {
+        console.log('✓ Organized using Vivaldi bridge script');
+      }
+      
     } catch (error) {
       console.error('Error in workspace mode:', error);
       
       // Provide a more helpful error message
       const errorMessage = error.message.includes('bridge') 
-        ? `❌ ${error.message}\n\nTo verify the bridge is installed:\n1. Open Vivaldi DevTools (F12)\n2. Check Console for "Vivaldi AI Tab Sorter Bridge Script loaded"\n3. If not found, follow installation instructions in INSTALL.md`
+        ? `❌ ${error.message}\n\nNote: The extension now uses Chrome Extensions API by default, which works without the bridge script.`
         : `❌ Workspace mode error: ${error.message}`;
       
       throw new Error(errorMessage);
