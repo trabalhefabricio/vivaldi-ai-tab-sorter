@@ -15,6 +15,8 @@ async function handleWorkspaceOrganization(categorizedTabs) {
     // Try to communicate with the Vivaldi bridge script
     // The bridge script should be injected into Vivaldi's browser.html
     
+    console.log('Attempting to communicate with Vivaldi bridge script...');
+    
     // First, try to send message to the bridge via storage
     await chrome.storage.local.set({
       workspaceCommand: {
@@ -24,14 +26,18 @@ async function handleWorkspaceOrganization(categorizedTabs) {
       }
     });
     
-    // Wait a bit for the bridge to process
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log('Workspace command sent to storage, waiting for bridge response...');
+    
+    // Wait for the bridge to process (increased from 1s to 2s for reliability)
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Check if the bridge responded
     const result = await chrome.storage.local.get('workspaceCommandResult');
     
     if (result.workspaceCommandResult && 
         result.workspaceCommandResult.timestamp > Date.now() - 5000) {
+      console.log('Bridge responded:', result.workspaceCommandResult);
+      
       // Clear the command and result
       await chrome.storage.local.remove(['workspaceCommand', 'workspaceCommandResult']);
       
@@ -43,6 +49,7 @@ async function handleWorkspaceOrganization(categorizedTabs) {
     }
     
     // If no response from bridge, it might not be installed
+    console.error('No response from Vivaldi bridge script');
     throw new Error('Vivaldi bridge script not responding. Please ensure ai_bridge.js is properly installed in browser.html');
     
   } catch (error) {

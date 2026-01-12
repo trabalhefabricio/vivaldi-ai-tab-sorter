@@ -33,7 +33,17 @@
       console.log('Received workspace command:', command);
       
       try {
-        if (command.action === 'organize') {
+        if (command.action === 'test') {
+          // Simple test response to verify bridge is loaded
+          console.log('Bridge test request received, responding...');
+          await chrome.storage.local.set({
+            workspaceCommandResult: {
+              success: true,
+              message: 'Bridge is responding',
+              timestamp: Date.now()
+            }
+          });
+        } else if (command.action === 'organize') {
           await organizeTabsToWorkspaces(command.categorizedTabs);
           
           // Send success response

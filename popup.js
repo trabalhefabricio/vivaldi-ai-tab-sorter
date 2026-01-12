@@ -740,21 +740,63 @@ Return ONLY the JSON array, nothing else.`;
     }
   }
   
+  async testBridgeConnection() {
+    // Test if the Vivaldi bridge script is responding
+    try {
+      console.log('Testing bridge connection...');
+      
+      await chrome.storage.local.set({
+        workspaceCommand: {
+          action: 'test',
+          timestamp: Date.now()
+        }
+      });
+      
+      // Wait for response
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const result = await chrome.storage.local.get('workspaceCommandResult');
+      
+      if (result.workspaceCommandResult && 
+          result.workspaceCommandResult.timestamp > Date.now() - 5000) {
+        await chrome.storage.local.remove(['workspaceCommand', 'workspaceCommandResult']);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error testing bridge:', error);
+      return false;
+    }
+  }
+  
   async applyWorkspaceMode() {
     // Send message to background script to handle workspace creation
     // This requires the bridge script in Vivaldi
     try {
+      console.log('Requesting workspace organization...');
+      
       const response = await chrome.runtime.sendMessage({
         action: 'organizeToWorkspaces',
         categorizedTabs: this.analyzedTabs
       });
       
       if (!response || !response.success) {
-        throw new Error(response?.error || 'Failed to organize tabs into workspaces');
+        const errorMsg = response?.error || 'Failed to organize tabs into workspaces';
+        console.error('Workspace organization failed:', errorMsg);
+        throw new Error(errorMsg);
       }
+      
+      console.log('Workspace organization successful');
     } catch (error) {
       console.error('Error in workspace mode:', error);
-      throw new Error('Workspace mode requires the Vivaldi bridge script. See documentation for installation instructions.');
+      
+      // Provide a more helpful error message
+      const errorMessage = error.message.includes('bridge') 
+        ? `❌ ${error.message}\n\nTo verify the bridge is installed:\n1. Open Vivaldi DevTools (F12)\n2. Check Console for "Vivaldi AI Tab Sorter Bridge Script loaded"\n3. If not found, follow installation instructions in INSTALL.md`
+        : `❌ Workspace mode error: ${error.message}`;
+      
+      throw new Error(errorMessage);
     }
   }
   
