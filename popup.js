@@ -687,19 +687,24 @@ Return ONLY the JSON array, nothing else.`;
         throw new Error('AI response does not contain a valid JSON array. Please try again.');
       }
       
-      // Try to parse starting from the first '['
-      // We'll attempt to parse progressively longer substrings to find valid JSON
-      for (let endIndex = jsonText.indexOf(']', startIndex) + 1; endIndex <= jsonText.length; endIndex++) {
-        if (jsonText[endIndex - 1] === ']') {
-          try {
-            const candidate = jsonText.substring(startIndex, endIndex);
-            categorizations = JSON.parse(candidate);
-            console.log('Successfully extracted JSON:', candidate);
-            break;
-          } catch (e) {
-            // Continue trying with longer substrings
-            continue;
-          }
+      // Find all positions of ']' after the start index for efficient parsing
+      const closingBrackets = [];
+      for (let i = startIndex; i < jsonText.length; i++) {
+        if (jsonText[i] === ']') {
+          closingBrackets.push(i + 1);
+        }
+      }
+      
+      // Try to parse at each closing bracket position
+      for (const endIndex of closingBrackets) {
+        try {
+          const candidate = jsonText.substring(startIndex, endIndex);
+          categorizations = JSON.parse(candidate);
+          console.log('Successfully extracted JSON:', candidate);
+          break;
+        } catch (e) {
+          // Continue trying with next closing bracket
+          continue;
         }
       }
       
@@ -720,9 +725,11 @@ Return ONLY the JSON array, nothing else.`;
       }
       
       // Validate each item has id and category with correct types
-      const invalidItems = categorizations.filter(item => 
-        !item || typeof item.id !== 'number' || typeof item.category !== 'string' || item.category.length === 0
-      );
+      // Filter returns items that match the condition, so we want to find items that are INVALID
+      const invalidItems = categorizations.filter(item => {
+        // Item is invalid if: it's null/undefined, OR id is not a number, OR category is not a non-empty string
+        return !item || typeof item.id !== 'number' || typeof item.category !== 'string' || item.category.length === 0;
+      });
       
       if (invalidItems.length > 0) {
         console.error('Response contains invalid items:', invalidItems);
