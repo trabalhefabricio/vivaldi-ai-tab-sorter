@@ -69,21 +69,16 @@ class TabSorter {
         requestCount: 0,
         lastResetDate: new Date().toDateString()
       });
-      // Don't call updateUsageInfo() here - we'll show a status message instead
-      // and keep the div visible temporarily
+      // Update the usage display to show reset confirmation
       const usageInfoDiv = document.getElementById('usageInfo');
       const usageText = document.getElementById('usageText');
-      usageText.innerHTML = `✓ Counter reset from ${oldCount} to 0. You can now make requests.`;
-      this.showStatus(`✓ Request counter reset from ${oldCount} to 0. You can now make API requests.`, 'success');
+      usageText.innerHTML = `✓ Counter reset from ${oldCount} to 0`;
+      this.showStatus(`✓ Request counter reset successfully. You can now make API requests.`, 'success');
       console.log(`Request counter manually reset by user from ${oldCount} to 0`);
       
-      // Hide the usage div after 3 seconds
+      // Update the usage display after 3 seconds to show current state
       setTimeout(() => {
-        if (this.requestCount === 0) {
-          usageInfoDiv.style.display = 'none';
-        } else {
-          this.updateUsageInfo();
-        }
+        this.updateUsageInfo();
       }, 3000);
     } catch (error) {
       console.error('Error resetting request counter:', error);
