@@ -695,15 +695,18 @@ Return ONLY the JSON array, nothing else.`;
         }
       }
       
-      // Try to parse at each closing bracket position
-      for (const endIndex of closingBrackets) {
+      // Try to parse at each closing bracket position (limit attempts for performance)
+      const maxAttempts = Math.min(closingBrackets.length, 50);
+      for (let i = 0; i < maxAttempts; i++) {
+        const endIndex = closingBrackets[i];
         try {
           const candidate = jsonText.substring(startIndex, endIndex);
           categorizations = JSON.parse(candidate);
           console.log('Successfully extracted JSON:', candidate);
           break;
         } catch (e) {
-          // Continue trying with next closing bracket
+          // Log parsing attempts for debugging
+          console.debug('Failed to parse JSON at position', endIndex, ':', e.message);
           continue;
         }
       }
@@ -724,12 +727,13 @@ Return ONLY the JSON array, nothing else.`;
         throw new Error('AI response is empty. Please try again.');
       }
       
+      // Helper function to validate a single categorization item
+      const isValidCategorization = (item) => {
+        return item && typeof item.id === 'number' && typeof item.category === 'string' && item.category.length > 0;
+      };
+      
       // Validate each item has id and category with correct types
-      // Filter returns items that match the condition, so we want to find items that are INVALID
-      const invalidItems = categorizations.filter(item => {
-        // Item is invalid if: it's null/undefined, OR id is not a number, OR category is not a non-empty string
-        return !item || typeof item.id !== 'number' || typeof item.category !== 'string' || item.category.length === 0;
-      });
+      const invalidItems = categorizations.filter(item => !isValidCategorization(item));
       
       if (invalidItems.length > 0) {
         console.error('Response contains invalid items:', invalidItems);
