@@ -364,9 +364,8 @@ class TabSorter {
             await new Promise(resolve => setTimeout(resolve, delayMs));
           }
           
-          // Track request time and count for rate limiting
+          // Track request time for rate limiting
           this.lastRequestTime = Date.now();
-          await this.updateRequestTracking();
           
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`, {
             method: 'POST',
@@ -433,6 +432,9 @@ class TabSorter {
             
             // Parse the JSON response
             const categorizedTabs = this.parseGeminiResponse(resultText, tabs);
+            
+            // Only increment request counter on successful API call
+            await this.updateRequestTracking();
             
             return categorizedTabs;
           }
