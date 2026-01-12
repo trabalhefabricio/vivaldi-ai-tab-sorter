@@ -7,10 +7,14 @@ class TabSorter {
     this.logicRules = '';
     this.removeDuplicates = false;
     this.mode = 'workspaces';
+    this.stackScope = 'current'; // 'current' or 'all' - for stack mode options
     this.analyzedTabs = null;
     this.allTabs = [];
     this.selectedModel = 'gemini-1.5-flash'; // Default to stable model
     this.availableModels = []; // Will be populated from API
+    
+    // Colors available for tab groups in Chrome/Vivaldi
+    this.availableColors = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
     
     // Rate limiting for free tier (15 RPM, 1500 RPD)
     this.lastRequestTime = 0;
@@ -96,6 +100,7 @@ class TabSorter {
         'logicRules', 
         'removeDuplicates', 
         'mode',
+        'stackScope',
         'selectedModel'
       ]);
       
@@ -123,6 +128,12 @@ class TabSorter {
       if (data.removeDuplicates !== undefined) {
         document.getElementById('removeDuplicates').checked = data.removeDuplicates;
         this.removeDuplicates = data.removeDuplicates;
+      }
+      
+      if (data.stackScope) {
+        const scopeRadio = document.getElementById(data.stackScope === 'all' ? 'stackAllWindows' : 'stackCurrentWindow');
+        if (scopeRadio) scopeRadio.checked = true;
+        this.stackScope = data.stackScope;
       }
       
       if (data.mode) {
@@ -205,10 +216,32 @@ class TabSorter {
       radio.addEventListener('change', (e) => {
         if (e.target.checked) {
           this.mode = e.target.value;
+          // Show/hide stack options based on mode selection
+          const stackOptionsSection = document.getElementById('stackOptionsSection');
+          if (stackOptionsSection) {
+            stackOptionsSection.style.display = e.target.value === 'stacks' ? 'block' : 'none';
+          }
           this.saveSettings();
         }
       });
     });
+    
+    // Stack scope options
+    document.querySelectorAll('input[name="stackScope"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          this.stackScope = e.target.value;
+          this.saveSettings();
+        }
+      });
+    });
+    
+    // Show/hide stack options on initial load
+    const currentMode = document.querySelector('input[name="mode"]:checked');
+    const stackOptionsSection = document.getElementById('stackOptionsSection');
+    if (currentMode && stackOptionsSection) {
+      stackOptionsSection.style.display = currentMode.value === 'stacks' ? 'block' : 'none';
+    }
     
     // Action buttons
     document.getElementById('analyzeBtn').addEventListener('click', () => this.analyze());
@@ -314,6 +347,7 @@ class TabSorter {
         logicRules: this.logicRules,
         removeDuplicates: this.removeDuplicates,
         mode: this.mode,
+        stackScope: this.stackScope,
         selectedModel: this.selectedModel
       });
     } catch (error) {
@@ -811,30 +845,88 @@ Return ONLY the JSON array, nothing else.`;
   
   async applyStackMode() {
     try {
-      // Create tab groups (stacks) in the current window
-      const currentWindow = await chrome.windows.getCurrent();
+      console.log(`Stack mode: scope=${this.stackScope}`);
       
-      for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
+      let targetWindowId;
+      let allTabsToOrganize = [];
+      
+      if (this.stackScope === 'all') {
+        // Consolidate all windows: get all tabs from all windows
+        console.log('Consolidating tabs from all windows into one window...');
+        const allWindows = await chrome.windows.getAll({ populate: true });
+        
+        // Create or use a window for consolidation
+        targetWindowId = allWindows[0].id;
+        
+        // Collect all tabs that need to be organized
+        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
+          if (tabs.length === 0) continue;
+          
+          // Move tabs from other windows to the target window first
+          for (const tab of tabs) {
+            if (tab.windowId !== targetWindowId) {
+              try {
+                await chrome.tabs.move(tab.id, {
+                  windowId: targetWindowId,
+                  index: -1
+                });
+              } catch (err) {
+                console.error(`Error moving tab ${tab.id} to target window:`, err);
+              }
+            }
+          }
+          allTabsToOrganize.push({ category, tabs });
+        }
+      } else {
+        // Current window only
+        const currentWindow = await chrome.windows.getCurrent();
+        targetWindowId = currentWindow.id;
+        
+        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
+          if (tabs.length === 0) continue;
+          // Only include tabs from current window
+          const tabsInCurrentWindow = tabs.filter(t => t.windowId === currentWindow.id);
+          if (tabsInCurrentWindow.length > 0) {
+            allTabsToOrganize.push({ category, tabs: tabsInCurrentWindow });
+          }
+        }
+      }
+      
+      // Now create colored groups with names for each category
+      let colorIndex = 0;
+      for (const { category, tabs } of allTabsToOrganize) {
         if (tabs.length === 0) continue;
         
-        // Move all tabs to current window first
         const tabIds = tabs.map(t => t.id);
+        const color = this.availableColors[colorIndex % this.availableColors.length];
         
-        // Create a group for this category
+        console.log(`Creating group "${category}" with color ${color} and ${tabIds.length} tabs`);
+        
         try {
           const groupId = await chrome.tabs.group({
             tabIds: tabIds
           });
           
-          // Update group properties
+          // Update group with color and category name
           await chrome.tabGroups.update(groupId, {
             title: category,
+            color: color,
             collapsed: false
           });
+          
+          colorIndex++;
         } catch (err) {
           console.error(`Error creating group for ${category}:`, err);
         }
       }
+      
+      // Focus the target window
+      if (targetWindowId) {
+        await chrome.windows.update(targetWindowId, { focused: true });
+      }
+      
+      console.log(`✓ Created ${allTabsToOrganize.length} colored tab stacks`);
+      
     } catch (error) {
       console.error('Error in stack mode:', error);
       throw error;

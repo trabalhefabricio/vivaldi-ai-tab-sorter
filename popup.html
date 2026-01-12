@@ -303,10 +303,32 @@
         <div class="radio-option">
           <input type="radio" name="mode" id="modeStacks" value="stacks">
           <label for="modeStacks">
-            <strong>Tab Stacks</strong>
-            <div class="help-text">Group tabs in the current window</div>
+            <strong>Tab Stacks</strong> (Named & Colored)
+            <div class="help-text">Group tabs with colors and category names</div>
           </label>
         </div>
+      </div>
+    </div>
+    
+    <div class="section" id="stackOptionsSection" style="display: none;">
+      <label>Stack Mode Options</label>
+      <div class="radio-group">
+        <div class="radio-option">
+          <input type="radio" name="stackScope" id="stackCurrentWindow" value="current" checked>
+          <label for="stackCurrentWindow">
+            <strong>Current Window Only</strong>
+            <div class="help-text">Organize tabs in the current window</div>
+          </label>
+        </div>
+        <div class="radio-option">
+          <input type="radio" name="stackScope" id="stackAllWindows" value="all">
+          <label for="stackAllWindows">
+            <strong>All Windows</strong>
+            <div class="help-text">Consolidate all tabs into one window with organized stacks</div>
+          </label>
+        </div>
+      </div>
+    </div>
         <div class="radio-option">
           <input type="radio" name="mode" id="modeWindows" value="windows">
           <label for="modeWindows">
