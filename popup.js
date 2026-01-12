@@ -72,7 +72,12 @@ class TabSorter {
     });
     
     document.getElementById('categories').addEventListener('input', (e) => {
-      this.categories = e.target.value.split(',').map(c => c.trim()).filter(c => c);
+      // Sanitize category input - remove any HTML/script tags
+      const sanitized = e.target.value.replace(/<[^>]*>/g, '');
+      if (sanitized !== e.target.value) {
+        e.target.value = sanitized;
+      }
+      this.categories = sanitized.split(',').map(c => c.trim()).filter(c => c);
       this.saveSettings();
     });
     
@@ -117,8 +122,15 @@ class TabSorter {
   async analyze() {
     try {
       // Validate inputs
-      if (!this.apiKey) {
+      if (!this.apiKey || !this.apiKey.trim()) {
         this.showStatus('Please enter your Gemini API key', 'error');
+        return;
+      }
+      
+      // Validate API key format (Gemini API keys start with "AI" and are 39 characters)
+      const trimmedKey = this.apiKey.trim();
+      if (!trimmedKey.startsWith('AI') || trimmedKey.length < 30) {
+        this.showStatus('Invalid API key format. Please check your Gemini API key.', 'error');
         return;
       }
       
@@ -162,7 +174,9 @@ class TabSorter {
       
     } catch (error) {
       console.error('Error analyzing tabs:', error);
-      this.showStatus(`Error: ${error.message}`, 'error');
+      // Sanitize error message to avoid exposing sensitive information like API keys
+      const sanitizedMessage = this.sanitizeErrorMessage(error.message);
+      this.showStatus(`Error: ${sanitizedMessage}`, 'error');
       document.getElementById('analyzeBtn').disabled = false;
     }
   }
@@ -344,10 +358,18 @@ Return ONLY the JSON array, nothing else.`;
         totalTabs += tabs.length;
         const item = document.createElement('div');
         item.className = 'preview-item';
-        item.innerHTML = `
-          <span class="preview-category">${category}</span>
-          <span class="preview-count">(${tabs.length} tab${tabs.length !== 1 ? 's' : ''})</span>
-        `;
+        
+        // Use textContent to prevent XSS
+        const categorySpan = document.createElement('span');
+        categorySpan.className = 'preview-category';
+        categorySpan.textContent = category;
+        
+        const countSpan = document.createElement('span');
+        countSpan.className = 'preview-count';
+        countSpan.textContent = `(${tabs.length} tab${tabs.length !== 1 ? 's' : ''})`;
+        
+        item.appendChild(categorySpan);
+        item.appendChild(countSpan);
         previewDiv.appendChild(item);
       }
     });
@@ -357,7 +379,7 @@ Return ONLY the JSON array, nothing else.`;
     totalItem.style.fontWeight = 'bold';
     totalItem.style.marginTop = '8px';
     totalItem.style.paddingTop = '8px';
-    totalItem.innerHTML = `Total: ${totalTabs} tabs`;
+    totalItem.textContent = `Total: ${totalTabs} tabs`;
     previewDiv.appendChild(totalItem);
     
     previewDiv.classList.add('visible');
@@ -390,7 +412,8 @@ Return ONLY the JSON array, nothing else.`;
       
     } catch (error) {
       console.error('Error applying sorting:', error);
-      this.showStatus(`Error: ${error.message}`, 'error');
+      const sanitizedMessage = this.sanitizeErrorMessage(error.message);
+      this.showStatus(`Error: ${sanitizedMessage}`, 'error');
       document.getElementById('applyBtn').disabled = false;
     }
   }
@@ -481,6 +504,31 @@ Return ONLY the JSON array, nothing else.`;
   
   capitalizeFirst(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+  
+  // Escape HTML to prevent XSS attacks
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  // Sanitize error messages to avoid exposing sensitive information
+  sanitizeErrorMessage(message) {
+    if (!message) return 'An unknown error occurred';
+    
+    // Remove any potential API keys (starting with AI and followed by alphanumeric)
+    let sanitized = message.replace(/AI[a-zA-Z0-9_-]{20,}/g, '[API_KEY]');
+    
+    // Remove URLs that might contain sensitive query parameters
+    sanitized = sanitized.replace(/https?:\/\/[^\s]+\?[^\s]+/g, '[URL]');
+    
+    // Keep the message user-friendly
+    if (sanitized.length > 200) {
+      sanitized = sanitized.substring(0, 200) + '...';
+    }
+    
+    return sanitized;
   }
 }
 
