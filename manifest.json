@@ -26,13 +26,5 @@
   },
   "background": {
     "service_worker": "background.js"
-  },
-  "content_scripts": [
-    {
-      "matches": ["chrome://vivaldi-webui/*"],
-      "js": ["bridge_listener.js"],
-      "run_at": "document_start",
-      "all_frames": true
-    }
-  ]
+  }
 }
