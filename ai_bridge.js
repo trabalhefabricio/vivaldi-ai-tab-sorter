@@ -1,5 +1,5 @@
 // ai_bridge.js - Vivaldi Workspace Bridge Script
-// This script must be injected into Vivaldi's browser.html to access vivaldi.workspaces API
+// This script must be injected into Vivaldi's window.html to access vivaldi.workspaces API
 // 
 // Installation:
 // 1. Close Vivaldi completely
@@ -7,7 +7,7 @@
 //    - Windows: C:\Users\[YourUsername]\AppData\Local\Vivaldi\Application\[version]\resources\vivaldi
 //    - macOS: /Applications/Vivaldi.app/Contents/Versions/[version]/Vivaldi Framework.framework/Resources/vivaldi
 //    - Linux: /opt/vivaldi/resources/vivaldi
-// 3. Open browser.html in a text editor
+// 3. Open window.html in a text editor
 // 4. Add this line before the closing </body> tag:
 //    <script src="ai_bridge.js"></script>
 // 5. Copy this ai_bridge.js file to the same directory
@@ -33,7 +33,17 @@
       console.log('Received workspace command:', command);
       
       try {
-        if (command.action === 'organize') {
+        if (command.action === 'test') {
+          // Simple test response to verify bridge is loaded
+          console.log('Bridge test request received, responding...');
+          await chrome.storage.local.set({
+            workspaceCommandResult: {
+              success: true,
+              message: 'Bridge is responding',
+              timestamp: Date.now()
+            }
+          });
+        } else if (command.action === 'organize') {
           await organizeTabsToWorkspaces(command.categorizedTabs);
           
           // Send success response
