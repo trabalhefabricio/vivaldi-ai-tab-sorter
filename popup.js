@@ -134,9 +134,9 @@ class TabSorter {
         return;
       }
       
-      // Validate API key format (Gemini API keys start with "AI" and are 39 characters)
+      // Validate API key format (Gemini API keys typically start with "AI" and are 39+ characters)
       const trimmedKey = this.apiKey.trim();
-      if (!trimmedKey.startsWith('AI') || trimmedKey.length < 30) {
+      if (!trimmedKey.startsWith('AI') || trimmedKey.length < 35) {
         this.showStatus('Invalid API key format. Please check your Gemini API key.', 'error');
         return;
       }
@@ -524,8 +524,8 @@ Return ONLY the JSON array, nothing else.`;
   sanitizeErrorMessage(message) {
     if (!message) return 'An unknown error occurred';
     
-    // Remove any potential API keys (starting with AI and followed by alphanumeric)
-    let sanitized = message.replace(/AI[a-zA-Z0-9_-]{20,}/g, '[API_KEY]');
+    // Remove any potential API keys (Gemini keys start with "AI" followed by 33+ alphanumeric chars)
+    let sanitized = message.replace(/AI[a-zA-Z0-9_-]{28,}/g, '[API_KEY]');
     
     // Remove URLs that might contain sensitive query parameters
     sanitized = sanitized.replace(/https?:\/\/[^\s]+\?[^\s]+/g, '[URL]');
