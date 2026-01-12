@@ -670,15 +670,15 @@ Return ONLY the JSON array, nothing else.`;
       
       // Remove markdown code block formatting if present
       if (jsonText.startsWith('```')) {
-        // Extract content between ``` markers
-        const codeBlockMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+        // Extract content between ``` markers (handle json, javascript, or no language tag)
+        const codeBlockMatch = jsonText.match(/```(?:json|javascript)?\s*([\s\S]*?)```/i);
         if (codeBlockMatch) {
           jsonText = codeBlockMatch[1].trim();
         }
       }
       
-      // Try to find JSON array in the text
-      const jsonMatch = jsonText.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+      // Try to find JSON array in the text (match arrays with zero or more objects)
+      const jsonMatch = jsonText.match(/\[\s*(?:\{[\s\S]*?\}\s*,?\s*)*\]/);
       if (!jsonMatch) {
         console.error('Could not find JSON array in response. Response text:', jsonText);
         throw new Error('AI response does not contain a valid JSON array. Please try again.');
@@ -708,14 +708,14 @@ Return ONLY the JSON array, nothing else.`;
         throw new Error('AI response is empty. Please try again.');
       }
       
-      // Validate each item has id and category
+      // Validate each item has id and category with correct types
       const invalidItems = categorizations.filter(item => 
-        !item || typeof item.id === 'undefined' || !item.category
+        !item || typeof item.id !== 'number' || !item.category || typeof item.category !== 'string'
       );
       
       if (invalidItems.length > 0) {
         console.error('Response contains invalid items:', invalidItems);
-        throw new Error('AI response contains items without id or category. Please try again.');
+        throw new Error('AI response contains items with invalid id or category. Please try again.');
       }
       
       console.log('Successfully parsed categorizations:', categorizations);
