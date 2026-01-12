@@ -61,6 +61,22 @@ class TabSorter {
     }
   }
   
+  async resetRequestCounter() {
+    try {
+      this.requestCount = 0;
+      await chrome.storage.local.set({
+        requestCount: 0,
+        lastResetDate: new Date().toDateString()
+      });
+      this.updateUsageInfo();
+      this.showStatus('✓ Request counter has been reset', 'success');
+      console.log('Request counter manually reset by user');
+    } catch (error) {
+      console.error('Error resetting request counter:', error);
+      this.showStatus('Error resetting counter. Please try again.', 'error');
+    }
+  }
+  
   async loadSettings() {
     try {
       const data = await chrome.storage.local.get([
@@ -174,6 +190,12 @@ class TabSorter {
     // Action buttons
     document.getElementById('analyzeBtn').addEventListener('click', () => this.analyze());
     document.getElementById('applyBtn').addEventListener('click', () => this.apply());
+    
+    // Reset counter button
+    document.getElementById('resetCounter').addEventListener('click', (e) => {
+      e.preventDefault();
+      this.resetRequestCounter();
+    });
   }
   
   async saveSettings() {
