@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Tabs Generator - Vivaldi AI Tab Sorter</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    p {
+      text-align: center;
+      margin-bottom: 30px;
+      opacity: 0.9;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+    }
+    h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #fff;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      transition: all 0.3s;
+    }
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 8px 20px rgba(245, 87, 108, 0.4);
+    }
+    #status {
+      text-align: center;
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+    #status.visible {
+      display: block;
+    }
+    .info {
+      background: rgba(66, 153, 225, 0.3);
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Test Tabs Generator</h1>
+    <p>Generate test tabs to try out the Vivaldi AI Tab Sorter</p>
+    
+    <div class="section">
+      <h2>Quick Test Sets</h2>
+      <button onclick="openWorkTabs()">📊 Open Work Tabs (5 tabs)</button>
+      <button onclick="openShoppingTabs()">🛍️ Open Shopping Tabs (5 tabs)</button>
+      <button onclick="openSocialTabs()">💬 Open Social Media Tabs (5 tabs)</button>
+      <button onclick="openResearchTabs()">📚 Open Research Tabs (5 tabs)</button>
+      <button onclick="openEntertainmentTabs()">🎮 Open Entertainment Tabs (5 tabs)</button>
+    </div>
+    
+    <div class="section">
+      <h2>Full Test Suite</h2>
+      <button class="btn-primary" onclick="openAllTestTabs()">🚀 Open All Test Tabs (25 tabs)</button>
+      <button onclick="openMixedTabs()">🎲 Open Random Mix (15 tabs)</button>
+    </div>
+    
+    <div class="section">
+      <h2>Edge Cases</h2>
+      <button onclick="openDuplicates()">🔄 Open Duplicates (10 tabs)</button>
+      <button onclick="openYouTubeMix()">📺 Open YouTube Mix (8 tabs)</button>
+    </div>
+    
+    <div id="status"></div>
+    
+    <div class="info">
+      <strong>How to use:</strong><br>
+      1. Click any button to open test tabs<br>
+      2. Open the Vivaldi AI Tab Sorter extension<br>
+      3. Enter categories: "Work, Shopping, Social, Research, Entertainment"<br>
+      4. Click "Analyze & Preview"<br>
+      5. Review the categorization<br>
+      6. Click "Apply Sorting" to organize!
+    </div>
+  </div>
+  
+  <script>
+    function showStatus(message) {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = 'visible';
+      setTimeout(() => {
+        status.className = '';
+      }, 3000);
+    }
+    
+    function openWorkTabs() {
+      const workUrls = [
+        'https://github.com',
+        'https://mail.google.com',
+        'https://calendar.google.com',
+        'https://docs.google.com',
+        'https://stackoverflow.com'
+      ];
+      workUrls.forEach(url => window.open(url, '_blank'));
+      showStatus('✅ Opened 5 work tabs');
+    }
+    
+    function openShoppingTabs() {
+      const shoppingUrls = [
+        'https://amazon.com',
+        'https://ebay.com',
+        'https://walmart.com',
+        'https://target.com',
+        'https://bestbuy.com'
+      ];
+      shoppingUrls.forEach(url => window.open(url, '_blank'));
+      showStatus('✅ Opened 5 shopping tabs');
+    }
+    
+    function openSocialTabs() {
+      const socialUrls = [
+        'https://twitter.com',
+        'https://facebook.com',
+        'https://linkedin.com',
+        'https://instagram.com',
+        'https://reddit.com'
+      ];
+      socialUrls.forEach(url => window.open(url, '_blank'));
+      showStatus('✅ Opened 5 social media tabs');
+    }
+    
+    function openResearchTabs() {
+      const researchUrls = [
+        'https://scholar.google.com',
+        'https://wikipedia.org',
+        'https://arxiv.org',
+        'https://jstor.org',
+        'https://pubmed.ncbi.nlm.nih.gov'
+      ];
+      researchUrls.forEach(url => window.open(url, '_blank'));
+      showStatus('✅ Opened 5 research tabs');
+    }
+    
+    function openEntertainmentTabs() {
+      const entertainmentUrls = [
+        'https://youtube.com',
+        'https://netflix.com',
+        'https://spotify.com',
+        'https://twitch.tv',
+        'https://reddit.com/r/videos'
+      ];
+      entertainmentUrls.forEach(url => window.open(url, '_blank'));
+      showStatus('✅ Opened 5 entertainment tabs');
+    }
+    
+    function openAllTestTabs() {
+      openWorkTabs();
+      setTimeout(() => openShoppingTabs(), 500);
+      setTimeout(() => openSocialTabs(), 1000);
+      setTimeout(() => openResearchTabs(), 1500);
+      setTimeout(() => openEntertainmentTabs(), 2000);
+      showStatus('✅ Opening 25 test tabs...');
+    }
+    
+    function openMixedTabs() {
+      const mixedUrls = [
+        'https://github.com/trending',
+        'https://news.ycombinator.com',
+        'https://producthunt.com',
+        'https://medium.com',
+        'https://dev.to',
+        'https://stackoverflow.com/questions',
+        'https://youtube.com/feed/trending',
+        'https://amazon.com/gp/bestsellers',
+        'https://twitter.com/explore',
+        'https://reddit.com/r/all',
+        'https://theverge.com',
+        'https://techcrunch.com',
+        'https://wired.com',
+        'https://arstechnica.com',
+        'https://hacker-news.firebaseapp.com'
+      ];
+      mixedUrls.forEach(url => window.open(url, '_blank'));
+      showStatus('✅ Opened 15 mixed tabs');
+    }
+    
+    function openDuplicates() {
+      const urls = [
+        'https://github.com',
+        'https://github.com',
+        'https://stackoverflow.com',
+        'https://stackoverflow.com',
+        'https://youtube.com',
+        'https://youtube.com',
+        'https://reddit.com',
+        'https://reddit.com',
+        'https://twitter.com',
+        'https://twitter.com'
+      ];
+      urls.forEach(url => window.open(url, '_blank'));
+      showStatus('✅ Opened 10 tabs (5 pairs of duplicates)');
+    }
+    
+    function openYouTubeMix() {
+      const youtubeUrls = [
+        'https://youtube.com/watch?v=dQw4w9WgXcQ',  // Music
+        'https://youtube.com/results?search_query=coding+tutorial',  // Work
+        'https://youtube.com/results?search_query=cooking+recipe',  // Entertainment
+        'https://youtube.com/results?search_query=how+to+program',  // Work
+        'https://youtube.com/watch?v=jNQXAC9IVRw',  // Music
+        'https://youtube.com/results?search_query=javascript+tutorial',  // Work
+        'https://youtube.com/results?search_query=funny+cats',  // Entertainment
+        'https://youtube.com/results?search_query=python+course'  // Work
+      ];
+      youtubeUrls.forEach(url => window.open(url, '_blank'));
+      showStatus('✅ Opened 8 YouTube tabs (mixed content)');
+    }
+  </script>
+</body>
+</html>
