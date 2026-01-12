@@ -192,8 +192,7 @@ class TabSorter {
     document.getElementById('applyBtn').addEventListener('click', () => this.apply());
     
     // Reset counter button
-    document.getElementById('resetCounter').addEventListener('click', (e) => {
-      e.preventDefault();
+    document.getElementById('resetCounter').addEventListener('click', () => {
       this.resetRequestCounter();
     });
   }
