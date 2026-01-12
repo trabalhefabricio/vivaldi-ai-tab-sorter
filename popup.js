@@ -936,8 +936,14 @@ Return ONLY the JSON array, nothing else.`;
   async applyWindowMode() {
     try {
       // Create separate windows for each category
+      // Each window will have tabs grouped with the category name as the group title
+      let colorIndex = 0;
+      let windowsCreated = 0;
+      
       for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
         if (tabs.length === 0) continue;
+        
+        console.log(`Creating window for category "${category}" with ${tabs.length} tabs`);
         
         // Create new window with the first tab
         const firstTab = tabs[0];
@@ -954,7 +960,39 @@ Return ONLY the JSON array, nothing else.`;
             index: -1
           });
         }
+        
+        // Get all tabs in the new window (they've been moved)
+        const windowTabs = await chrome.tabs.query({ windowId: newWindow.id });
+        const tabIds = windowTabs.map(t => t.id);
+        
+        // Group all tabs together with the category name and color
+        // Only group if we have tabs and colors available
+        if (tabIds.length > 0 && this.availableColors && this.availableColors.length > 0) {
+          try {
+            const color = this.availableColors[colorIndex % this.availableColors.length];
+            const groupId = await chrome.tabs.group({
+              tabIds: tabIds
+            });
+            
+            // Update group with color and category name as title
+            await chrome.tabGroups.update(groupId, {
+              title: category,
+              color: color,
+              collapsed: false
+            });
+            
+            console.log(`✓ Created group "${category}" with color ${color} in window ${newWindow.id}`);
+            colorIndex++;
+          } catch (err) {
+            console.error(`Error creating group for ${category}:`, err);
+          }
+        }
+        
+        windowsCreated++;
       }
+      
+      console.log(`✓ Created ${windowsCreated} windows with grouped tabs`);
+      
     } catch (error) {
       console.error('Error in window mode:', error);
       throw error;
