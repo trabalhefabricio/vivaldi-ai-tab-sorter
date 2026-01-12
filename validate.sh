@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Validation script for Vivaldi AI Tab Sorter extension
 
 echo "🔍 Validating Vivaldi AI Tab Sorter Extension..."
