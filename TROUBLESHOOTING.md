@@ -282,10 +282,35 @@ Use: "YouTube in Entertainment unless title has 'tutorial', 'how to', 'learn', t
 
 ### Common Error Messages
 
-**"Failed to parse AI response"**
-- Gemini returned unexpected format
-- Try again with fewer tabs
-- Check API key is valid
+**AI Response Parsing Errors**
+
+The extension now provides detailed error messages for parsing issues:
+
+1. **"Could not find JSON array in AI response"**
+   - The AI returned text but no valid JSON array was found
+   - The response may be empty or contain only explanatory text
+   - Try running the analysis again - AI responses can vary
+
+2. **"Invalid JSON format in AI response"**
+   - The AI returned malformed JSON that couldn't be parsed
+   - Try analyzing fewer tabs (reduces complexity)
+   - Check your API key is valid and active
+   - Consider simplifying your categories or logic rules
+
+3. **"AI response is not a JSON array"**
+   - The AI returned valid JSON but not in array format
+   - Try rephrasing your categories to be more clear
+   - Run the analysis again - this is usually temporary
+
+4. **"AI returned an empty categorization list"**
+   - The AI returned an empty array with no categorizations
+   - Try rephrasing your categories or logic rules
+   - Ensure your categories are clear and distinct
+
+5. **"AI response items are missing required fields"**
+   - The response is missing "id" or "category" fields
+   - This is rare - try analyzing again
+   - If it persists, check the browser console for more details
 
 **"Cannot access chrome.tabs"**
 - Extension permissions issue

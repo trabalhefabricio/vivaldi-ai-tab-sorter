@@ -663,13 +663,68 @@ Return ONLY the JSON array, nothing else.`;
   
   parseGeminiResponse(responseText, originalTabs) {
     try {
-      // Extract JSON from response (in case there's extra text)
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        throw new Error('Could not find JSON array in response');
+      console.log('Parsing Gemini response, length:', responseText.length);
+      
+      let jsonText = null;
+      let categorizations = null;
+      
+      // Strategy 1: Try to extract JSON from markdown code blocks
+      const markdownMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (markdownMatch) {
+        console.log('Found JSON in markdown code block');
+        jsonText = markdownMatch[1];
       }
       
-      const categorizations = JSON.parse(jsonMatch[0]);
+      // Strategy 2: Try to find a JSON array using regex (non-greedy)
+      if (!jsonText) {
+        const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+        if (jsonMatch) {
+          console.log('Found JSON array using regex');
+          jsonText = jsonMatch[0];
+        }
+      }
+      
+      // Strategy 3: Try to parse the entire response as JSON
+      if (!jsonText) {
+        console.log('Attempting to parse entire response as JSON');
+        jsonText = responseText.trim();
+      }
+      
+      // Throw descriptive error if no JSON found
+      if (!jsonText) {
+        console.error('Could not extract JSON from response. Response:', responseText.substring(0, 500));
+        throw new Error('Could not find JSON array in AI response. The response may be empty or malformed.');
+      }
+      
+      // Try to parse the JSON
+      try {
+        categorizations = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Failed to parse JSON:', jsonText.substring(0, 500));
+        throw new Error(`Invalid JSON format in AI response: ${parseError.message}. Try analyzing fewer tabs or check your API key.`);
+      }
+      
+      // Validate that we got an array
+      if (!Array.isArray(categorizations)) {
+        console.error('Response is not an array:', typeof categorizations);
+        throw new Error('AI response is not a JSON array. Expected format: [{"id": ..., "category": "..."}]');
+      }
+      
+      // Validate array has items
+      if (categorizations.length === 0) {
+        console.warn('AI returned empty array');
+        throw new Error('AI returned an empty categorization list. Try rephrasing your categories or logic rules.');
+      }
+      
+      // Validate items have required structure
+      const validItems = categorizations.filter(item => item && typeof item.id !== 'undefined' && item.category);
+      if (validItems.length === 0) {
+        console.error('No valid categorization items found. Sample:', categorizations[0]);
+        throw new Error('AI response items are missing "id" or "category" fields. Expected format: [{"id": ..., "category": "..."}]');
+      }
+      
+      console.log(`Successfully parsed ${validItems.length} categorizations out of ${categorizations.length} items`);
       
       // Create a map of categorized tabs
       const categorizedTabs = {};
@@ -682,7 +737,7 @@ Return ONLY the JSON array, nothing else.`;
       
       // Map categorizations back to original tabs
       const categorizationMap = new Map();
-      categorizations.forEach(item => {
+      validItems.forEach(item => {
         categorizationMap.set(item.id, item.category);
       });
       
@@ -699,7 +754,12 @@ Return ONLY the JSON array, nothing else.`;
       
     } catch (error) {
       console.error('Error parsing Gemini response:', error);
-      throw new Error('Failed to parse AI response. Please try again.');
+      // Re-throw with original message if it's already descriptive
+      if (error.message.includes('AI response') || error.message.includes('JSON')) {
+        throw error;
+      }
+      // Otherwise, wrap with generic message
+      throw new Error(`Failed to parse AI response: ${error.message}. Please try again.`);
     }
   }
   
