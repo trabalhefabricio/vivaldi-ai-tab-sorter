@@ -10,15 +10,55 @@ class TabSorter {
     this.analyzedTabs = null;
     this.allTabs = [];
     
+    // Rate limiting for free tier (15 RPM, 1500 RPD)
+    this.lastRequestTime = 0;
+    this.minRequestInterval = 4000; // 4 seconds between requests (15 RPM = 1 request per 4s)
+    this.requestCount = 0;
+    this.dailyRequestLimit = 1400; // Stay under 1500/day limit
+    
     this.init();
   }
   
   async init() {
-    // Load saved settings
+    // Load saved settings and request tracking
     await this.loadSettings();
+    await this.loadRequestTracking();
     
     // Setup event listeners
     this.setupEventListeners();
+  }
+  
+  async loadRequestTracking() {
+    try {
+      const data = await chrome.storage.local.get(['requestCount', 'lastResetDate']);
+      
+      // Reset counter if it's a new day
+      const today = new Date().toDateString();
+      if (data.lastResetDate !== today) {
+        this.requestCount = 0;
+        await chrome.storage.local.set({
+          requestCount: 0,
+          lastResetDate: today
+        });
+      } else {
+        this.requestCount = data.requestCount || 0;
+      }
+    } catch (error) {
+      console.error('Error loading request tracking:', error);
+      this.requestCount = 0;
+    }
+  }
+  
+  async updateRequestTracking() {
+    this.requestCount++;
+    try {
+      await chrome.storage.local.set({
+        requestCount: this.requestCount,
+        lastResetDate: new Date().toDateString()
+      });
+    } catch (error) {
+      console.error('Error updating request tracking:', error);
+    }
   }
   
   async loadSettings() {
@@ -59,8 +99,32 @@ class TabSorter {
           this.mode = data.mode;
         }
       }
+      
+      // Update usage info display
+      this.updateUsageInfo();
     } catch (error) {
       console.error('Error loading settings:', error);
+    }
+  }
+  
+  updateUsageInfo() {
+    const usageInfoDiv = document.getElementById('usageInfo');
+    const usageText = document.getElementById('usageText');
+    
+    if (this.requestCount > 0) {
+      usageInfoDiv.style.display = 'block';
+      const percentUsed = Math.round((this.requestCount / this.dailyRequestLimit) * 100);
+      let color = 'rgba(72, 187, 120, 0.9)'; // green
+      
+      if (percentUsed > 80) {
+        color = 'rgba(245, 101, 101, 0.9)'; // red
+      } else if (percentUsed > 60) {
+        color = 'rgba(237, 137, 54, 0.9)'; // orange
+      }
+      
+      usageText.innerHTML = `📊 API Usage Today: <span style="color: ${color}; font-weight: bold;">${this.requestCount}/${this.dailyRequestLimit}</span> requests (${percentUsed}%) • Free tier resets daily`;
+    } else {
+      usageInfoDiv.style.display = 'none';
     }
   }
   
@@ -146,6 +210,23 @@ class TabSorter {
         return;
       }
       
+      // Check daily request limit for free tier
+      if (this.requestCount >= this.dailyRequestLimit) {
+        this.showStatus(`⚠️ Daily limit reached (${this.dailyRequestLimit} requests). The free tier has a 1,500 requests/day limit. Try again tomorrow or upgrade your API plan.`, 'error');
+        document.getElementById('analyzeBtn').disabled = false;
+        return;
+      }
+      
+      // Check time since last request (rate limiting)
+      const timeSinceLastRequest = Date.now() - this.lastRequestTime;
+      if (timeSinceLastRequest < this.minRequestInterval && this.lastRequestTime > 0) {
+        const waitTime = Math.ceil((this.minRequestInterval - timeSinceLastRequest) / 1000);
+        this.showStatus(`⏳ Rate limiting: Please wait ${waitTime}s before making another request (free tier: 15 requests/minute max)`, 'info');
+        
+        // Wait and then proceed
+        await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+      }
+      
       this.showStatus('Collecting tabs from all windows...', 'info');
       document.getElementById('analyzeBtn').disabled = true;
       
@@ -158,7 +239,14 @@ class TabSorter {
         return;
       }
       
-      this.showStatus(`Found ${this.allTabs.length} tabs. Analyzing with AI...`, 'info');
+      // Estimate token usage and warn if large
+      const estimatedTokens = this.estimateTokens(this.allTabs);
+      if (estimatedTokens > 100000) {
+        this.showStatus(`⚠️ Large request (~${Math.round(estimatedTokens / 1000)}k tokens). Consider closing some tabs. Free tier limit: 1M tokens/minute.`, 'info');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Give user time to read
+      }
+      
+      this.showStatus(`Found ${this.allTabs.length} tabs. Analyzing with AI... (Request ${this.requestCount + 1}/${this.dailyRequestLimit} today)`, 'info');
       
       // Remove duplicates if requested
       let tabsToAnalyze = this.allTabs;
@@ -177,6 +265,9 @@ class TabSorter {
       document.getElementById('applyBtn').disabled = false;
       document.getElementById('analyzeBtn').disabled = false;
       
+      // Update usage info
+      this.updateUsageInfo();
+      
       this.showStatus('Analysis complete! Review the preview and click "Apply Sorting"', 'success');
       
     } catch (error) {
@@ -186,6 +277,23 @@ class TabSorter {
       this.showStatus(`Error: ${sanitizedMessage}`, 'error');
       document.getElementById('analyzeBtn').disabled = false;
     }
+  }
+  
+  // Estimate token usage for a tab list (rough estimation)
+  estimateTokens(tabs) {
+    // Rough estimation: ~4 chars per token
+    // Title + URL + JSON structure overhead
+    let totalChars = 0;
+    tabs.forEach(tab => {
+      totalChars += (tab.title?.length || 0) + (tab.url?.length || 0) + 50; // 50 for JSON overhead
+    });
+    
+    // Add prompt overhead (~500 tokens)
+    const promptOverhead = 2000; // chars
+    totalChars += promptOverhead;
+    
+    // Convert to tokens (rough: 4 chars = 1 token)
+    return Math.ceil(totalChars / 4);
   }
   
   async getAllTabs() {
@@ -241,43 +349,89 @@ class TabSorter {
       
       const prompt = this.buildGeminiPrompt(tabsInfo);
       
-      // Call Gemini API
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.2,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192
+      // Call Gemini API with retry logic for rate limiting
+      const maxRetries = 2;
+      let lastError = null;
+      
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          // Add delay for retries (exponential backoff)
+          if (attempt > 0) {
+            const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            this.showStatus(`Rate limit hit. Retrying in ${delayMs / 1000}s... (attempt ${attempt + 1}/${maxRetries + 1})`, 'info');
+            await new Promise(resolve => setTimeout(resolve, delayMs));
           }
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
+          
+          // Track request time and count for rate limiting
+          this.lastRequestTime = Date.now();
+          await this.updateRequestTracking();
+          
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: prompt
+                }]
+              }],
+              generationConfig: {
+                temperature: 0.2,
+                topK: 40,
+                topP: 0.95,
+                maxOutputTokens: 8192
+              }
+            })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.error?.message || response.statusText;
+            
+            // Check for rate limit errors (429 or quota messages)
+            if (response.status === 429 || errorMessage.toLowerCase().includes('quota') || 
+                errorMessage.toLowerCase().includes('rate limit')) {
+              lastError = new Error(`Rate limit exceeded. The free Gemini API has limits: 15 requests/minute, 1500 requests/day. Please wait a moment and try again.`);
+              
+              // Retry on rate limit errors
+              if (attempt < maxRetries) {
+                continue;
+              }
+            } else {
+              // For non-rate-limit errors, throw immediately
+              throw new Error(`Gemini API error: ${errorMessage}`);
+            }
+          } else {
+            // Success - parse and return the response
+            const data = await response.json();
+            const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!resultText) {
+              throw new Error('No response from Gemini API');
+            }
+            
+            // Parse the JSON response
+            const categorizedTabs = this.parseGeminiResponse(resultText, tabs);
+            
+            return categorizedTabs;
+          }
+        } catch (error) {
+          // If it's a fetch error (network issue), save it and potentially retry
+          if (error.message.includes('fetch') || error.message.includes('network')) {
+            lastError = error;
+            if (attempt < maxRetries) {
+              continue;
+            }
+          }
+          // For other errors, throw immediately
+          throw error;
+        }
       }
       
-      const data = await response.json();
-      const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (!resultText) {
-        throw new Error('No response from Gemini API');
-      }
-      
-      // Parse the JSON response
-      const categorizedTabs = this.parseGeminiResponse(resultText, tabs);
-      
-      return categorizedTabs;
+      // If we exhausted all retries, throw the last error
+      throw lastError || new Error('Failed to analyze tabs after multiple attempts');
       
     } catch (error) {
       console.error('Error calling Gemini API:', error);
