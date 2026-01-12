@@ -63,14 +63,28 @@ class TabSorter {
   
   async resetRequestCounter() {
     try {
+      const oldCount = this.requestCount;
       this.requestCount = 0;
       await chrome.storage.local.set({
         requestCount: 0,
         lastResetDate: new Date().toDateString()
       });
-      this.updateUsageInfo();
-      this.showStatus('✓ Request counter has been reset', 'success');
-      console.log('Request counter manually reset by user');
+      // Don't call updateUsageInfo() here - we'll show a status message instead
+      // and keep the div visible temporarily
+      const usageInfoDiv = document.getElementById('usageInfo');
+      const usageText = document.getElementById('usageText');
+      usageText.innerHTML = `✓ Counter reset from ${oldCount} to 0. You can now make requests.`;
+      this.showStatus(`✓ Request counter reset from ${oldCount} to 0. You can now make API requests.`, 'success');
+      console.log(`Request counter manually reset by user from ${oldCount} to 0`);
+      
+      // Hide the usage div after 3 seconds
+      setTimeout(() => {
+        if (this.requestCount === 0) {
+          usageInfoDiv.style.display = 'none';
+        } else {
+          this.updateUsageInfo();
+        }
+      }, 3000);
     } catch (error) {
       console.error('Error resetting request counter:', error);
       this.showStatus('Error resetting counter. Please try again.', 'error');
@@ -233,8 +247,11 @@ class TabSorter {
       
       // Check daily request limit for free tier
       if (this.requestCount >= this.dailyRequestLimit) {
-        this.showStatus(`⚠️ Daily limit reached (${this.dailyRequestLimit} requests). The free tier has a 1,500 requests/day limit. Try again tomorrow or upgrade your API plan.`, 'error');
+        console.warn(`Local request counter at ${this.requestCount}/${this.dailyRequestLimit}. Blocking request.`);
+        this.showStatus(`⚠️ Local daily limit reached (${this.requestCount}/${this.dailyRequestLimit} requests). This is the extension's tracker, not Google's limit. Click "Reset Counter" below if this seems wrong, or wait until tomorrow for automatic reset.`, 'error');
         document.getElementById('analyzeBtn').disabled = false;
+        // Make sure usage info is visible so user can see reset button
+        this.updateUsageInfo();
         return;
       }
       
@@ -388,6 +405,8 @@ class TabSorter {
           // Track request time for rate limiting
           this.lastRequestTime = Date.now();
           
+          console.log(`Making Gemini API request (attempt ${attempt + 1}/${maxRetries + 1}), local counter at ${this.requestCount}/${this.dailyRequestLimit}`);
+          
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`, {
             method: 'POST',
             headers: {
@@ -411,6 +430,8 @@ class TabSorter {
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             const errorMessage = errorData.error?.message || response.statusText;
+            
+            console.error(`Gemini API error (status ${response.status}):`, errorMessage);
             
             // Check for rate limit errors (429 or quota messages)
             if (response.status === 429 || errorMessage.toLowerCase().includes('quota') || 
@@ -455,6 +476,7 @@ class TabSorter {
             const categorizedTabs = this.parseGeminiResponse(resultText, tabs);
             
             // Only increment request counter on successful API call
+            console.log(`Gemini API request successful. Incrementing counter from ${this.requestCount} to ${this.requestCount + 1}`);
             await this.updateRequestTracking();
             
             return categorizedTabs;
