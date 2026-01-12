@@ -49,14 +49,14 @@
    - Open "resources" folder
    - Open "vivaldi" folder
 
-4. **Back up browser.html**
-   - Right-click on `browser.html`
+4. **Back up window.html**
+   - Right-click on `window.html`
    - Click "Copy"
    - Right-click in the same folder → "Paste"
-   - Rename the copy to `browser.html.backup`
+   - Rename the copy to `window.html.backup`
 
-5. **Edit browser.html**
-   - Right-click on `browser.html`
+5. **Edit window.html**
+   - Right-click on `window.html`
    - Select "Open with" → "Notepad"
    - Press Ctrl+F to search
    - Search for `</body>`
@@ -70,7 +70,7 @@
    - Go back to the extension folder you extracted earlier
    - Find the file `ai_bridge.js`
    - Copy it
-   - Paste it in the same "vivaldi" folder where browser.html is
+   - Paste it in the same "vivaldi" folder where window.html is
 
 7. **Restart Vivaldi**
 
@@ -88,9 +88,9 @@
    [version]/Vivaldi Framework.framework/Resources/vivaldi
    ```
 
-4. **Back up browser.html** (make a copy named browser.html.backup)
+4. **Back up window.html** (make a copy named window.html.backup)
 
-5. **Edit browser.html** with TextEdit or your preferred editor:
+5. **Edit window.html** with TextEdit or your preferred editor:
    - Find `</body>` (near the end)
    - Add this line before it:
      ```html
@@ -112,14 +112,14 @@
    # Or for Snap: cd /snap/vivaldi/current/opt/vivaldi/resources/vivaldi
    ```
 
-3. **Back up browser.html:**
+3. **Back up window.html:**
    ```bash
-   sudo cp browser.html browser.html.backup
+   sudo cp window.html window.html.backup
    ```
 
-4. **Edit browser.html:**
+4. **Edit window.html:**
    ```bash
-   sudo nano browser.html
+   sudo nano window.html
    ```
    - Scroll to the bottom
    - Find `</body>`

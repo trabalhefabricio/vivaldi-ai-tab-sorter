@@ -42,8 +42,8 @@ The bridge script is required to enable the Workspace organization feature. With
    ```
    C:\Users\[YourUsername]\AppData\Local\Vivaldi\Application\[version]\resources\vivaldi
    ```
-3. **Backup browser.html** (make a copy as browser.html.backup)
-4. Open `browser.html` in a text editor (Notepad, VS Code, etc.)
+3. **Backup window.html** (make a copy as window.html.backup)
+4. Open `window.html` in a text editor (Notepad, VS Code, etc.)
 5. Find the closing `</body>` tag (usually near the end of the file)
 6. Add this line **before** the `</body>` tag:
    ```html
@@ -59,8 +59,8 @@ The bridge script is required to enable the Workspace organization feature. With
    ```
    /Applications/Vivaldi.app/Contents/Versions/[version]/Vivaldi Framework.framework/Resources/vivaldi
    ```
-3. **Backup browser.html** (make a copy as browser.html.backup)
-4. Open `browser.html` in a text editor
+3. **Backup window.html** (make a copy as window.html.backup)
+4. Open `window.html` in a text editor
 5. Find the closing `</body>` tag
 6. Add this line **before** the `</body>` tag:
    ```html
@@ -80,13 +80,13 @@ The bridge script is required to enable the Workspace organization feature. With
    ```
    /snap/vivaldi/current/opt/vivaldi/resources/vivaldi
    ```
-3. **Backup browser.html** (you may need sudo):
+3. **Backup window.html** (you may need sudo):
    ```bash
-   sudo cp browser.html browser.html.backup
+   sudo cp window.html window.html.backup
    ```
-4. Edit `browser.html` with sudo:
+4. Edit `window.html` with sudo:
    ```bash
-   sudo nano browser.html
+   sudo nano window.html
    ```
 5. Find the closing `</body>` tag
 6. Add this line **before** the `</body>` tag:
@@ -99,7 +99,7 @@ The bridge script is required to enable the Workspace organization feature. With
    ```
 8. Restart Vivaldi
 
-**Note**: After Vivaldi updates, you may need to repeat this process as the browser.html file might be replaced.
+**Note**: After Vivaldi updates, you may need to repeat this process as the window.html file might be replaced.
 
 ## 🎯 How to Use
 
@@ -173,8 +173,8 @@ The bridge script is required to enable the Workspace organization feature. With
 
 ## 🔄 Updating After Vivaldi Updates
 
-When Vivaldi updates, the browser.html file might be replaced. You'll need to:
-1. Re-add the script tag to the new browser.html
+When Vivaldi updates, the window.html file might be replaced. You'll need to:
+1. Re-add the script tag to the new window.html
 2. Copy ai_bridge.js to the new version's directory
 
 ## 🤝 Contributing

@@ -119,7 +119,7 @@ This guide helps you solve common issues with the Vivaldi AI Tab Sorter extensio
 
 1. **Verify Bridge Installation**:
    - Check ai_bridge.js is in the vivaldi folder
-   - Check browser.html has the script tag
+   - Check window.html has the script tag
    - Ensure script tag is BEFORE `</body>`
 
 2. **Check File Paths**:
@@ -328,7 +328,7 @@ When reporting bugs, include:
 **Solutions**:
 1. Bridge script needs reinstalling
 2. Find new version folder
-3. Re-add script tag to browser.html
+3. Re-add script tag to window.html
 4. Copy ai_bridge.js to new location
 
 **Quick Check**:

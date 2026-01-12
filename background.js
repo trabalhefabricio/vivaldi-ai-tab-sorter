@@ -13,7 +13,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function handleWorkspaceOrganization(categorizedTabs) {
   try {
     // Try to communicate with the Vivaldi bridge script
-    // The bridge script should be injected into Vivaldi's browser.html
+    // The bridge script should be injected into Vivaldi's window.html
     
     console.log('Attempting to communicate with Vivaldi bridge script...');
     
@@ -50,7 +50,7 @@ async function handleWorkspaceOrganization(categorizedTabs) {
     
     // If no response from bridge, it might not be installed
     console.error('No response from Vivaldi bridge script');
-    throw new Error('Vivaldi bridge script not responding. Please ensure ai_bridge.js is properly installed in browser.html');
+    throw new Error('Vivaldi bridge script not responding. Please ensure ai_bridge.js is properly installed in window.html');
     
   } catch (error) {
     console.error('Error in workspace organization:', error);

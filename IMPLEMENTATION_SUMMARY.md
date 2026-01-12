@@ -38,7 +38,7 @@ This document summarizes the complete implementation of the Vivaldi AI Tab Sorte
 ### Technical Challenge Solved
 
 **✅ Workspace Bridge Implementation**
-- `ai_bridge.js` script for injection into browser.html
+- `ai_bridge.js` script for injection into window.html
 - Uses vivaldi.workspaces API with vivaldi.tabsPrivate fallback
 - Communication via Chrome storage API (shared storage listener)
 - Automatic workspace creation with proper naming
@@ -233,7 +233,7 @@ The extension is:
 
 5. **For Workspaces** (Optional):
    - Follow INSTALL.md bridge script instructions
-   - Requires editing Vivaldi's browser.html once
+   - Requires editing Vivaldi's window.html once
 
 ### For Developers:
 
