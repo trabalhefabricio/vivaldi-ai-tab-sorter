@@ -670,30 +670,41 @@ Return ONLY the JSON array, nothing else.`;
       
       // Remove markdown code block formatting if present
       if (jsonText.startsWith('```')) {
-        // Extract content between ``` markers (handle json, javascript, or no language tag)
-        const codeBlockMatch = jsonText.match(/```(?:json|javascript)?\s*([\s\S]*?)```/i);
+        // Extract content between ``` markers (handle json, js, javascript, ts, or no language tag)
+        const codeBlockMatch = jsonText.match(/```(?:json|javascript|js|ts)?\s*([\s\S]*?)```/i);
         if (codeBlockMatch) {
           jsonText = codeBlockMatch[1].trim();
         }
       }
       
-      // Try to find JSON array in the text (match arrays with zero or more objects)
-      const jsonMatch = jsonText.match(/\[\s*(?:\{[\s\S]*?\}\s*,?\s*)*\]/);
-      if (!jsonMatch) {
+      // Try to find the first JSON array in the text
+      // Use a simple approach: find the first '[' and try to parse from there
+      let categorizations = null;
+      const startIndex = jsonText.indexOf('[');
+      
+      if (startIndex === -1) {
         console.error('Could not find JSON array in response. Response text:', jsonText);
         throw new Error('AI response does not contain a valid JSON array. Please try again.');
       }
       
-      jsonText = jsonMatch[0];
-      console.log('Extracted JSON:', jsonText);
+      // Try to parse starting from the first '['
+      // We'll attempt to parse progressively longer substrings to find valid JSON
+      for (let endIndex = jsonText.indexOf(']', startIndex) + 1; endIndex <= jsonText.length; endIndex++) {
+        if (jsonText[endIndex - 1] === ']') {
+          try {
+            const candidate = jsonText.substring(startIndex, endIndex);
+            categorizations = JSON.parse(candidate);
+            console.log('Successfully extracted JSON:', candidate);
+            break;
+          } catch (e) {
+            // Continue trying with longer substrings
+            continue;
+          }
+        }
+      }
       
-      // Parse the JSON
-      let categorizations;
-      try {
-        categorizations = JSON.parse(jsonText);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Failed to parse:', jsonText);
+      if (!categorizations) {
+        console.error('Failed to parse JSON from response. Response text:', jsonText);
         throw new Error('AI response contains invalid JSON format. Please try again.');
       }
       
@@ -710,7 +721,7 @@ Return ONLY the JSON array, nothing else.`;
       
       // Validate each item has id and category with correct types
       const invalidItems = categorizations.filter(item => 
-        !item || typeof item.id !== 'number' || !item.category || typeof item.category !== 'string'
+        !item || typeof item.id !== 'number' || typeof item.category !== 'string' || item.category.length === 0
       );
       
       if (invalidItems.length > 0) {
