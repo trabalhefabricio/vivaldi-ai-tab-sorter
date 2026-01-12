@@ -36,35 +36,45 @@ done
 echo ""
 echo "📋 Validating manifest.json..."
 
-# Check if manifest.json is valid JSON
-if node -e "JSON.parse(require('fs').readFileSync('manifest.json', 'utf8'))" 2>/dev/null; then
-  echo "  ✓ manifest.json is valid JSON"
-else
-  echo "  ✗ manifest.json is not valid JSON"
-  ERRORS=$((ERRORS + 1))
-fi
+# Check if Node.js is available for JSON validation
+if command -v node >/dev/null 2>&1; then
+  # Check if manifest.json is valid JSON
+  if node -e "JSON.parse(require('fs').readFileSync('manifest.json', 'utf8'))" 2>/dev/null; then
+    echo "  ✓ manifest.json is valid JSON"
+  else
+    echo "  ✗ manifest.json is not valid JSON"
+    ERRORS=$((ERRORS + 1))
+  fi
 
-# Check manifest version
-MANIFEST_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('manifest.json', 'utf8')).manifest_version)" 2>/dev/null)
-if [ "$MANIFEST_VERSION" = "3" ]; then
-  echo "  ✓ Using Manifest V3"
+  # Check manifest version
+  MANIFEST_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('manifest.json', 'utf8')).manifest_version)" 2>/dev/null)
+  if [ "$MANIFEST_VERSION" = "3" ]; then
+    echo "  ✓ Using Manifest V3"
+  else
+    echo "  ✗ Not using Manifest V3"
+    ERRORS=$((ERRORS + 1))
+  fi
 else
-  echo "  ✗ Not using Manifest V3"
-  ERRORS=$((ERRORS + 1))
+  echo "  ⚠ Node.js not found - skipping JSON validation"
+  echo "  ℹ Install Node.js for complete validation"
 fi
 
 echo ""
 echo "🔧 Checking JavaScript syntax..."
 
 # Check JavaScript files for basic syntax errors
-for jsfile in popup.js background.js ai_bridge.js bridge_listener.js; do
-  if node -c "$jsfile" 2>/dev/null; then
-    echo "  ✓ $jsfile syntax is valid"
-  else
-    echo "  ✗ $jsfile has syntax errors"
-    ERRORS=$((ERRORS + 1))
-  fi
-done
+if command -v node >/dev/null 2>&1; then
+  for jsfile in popup.js background.js ai_bridge.js bridge_listener.js; do
+    if node -c "$jsfile" 2>/dev/null; then
+      echo "  ✓ $jsfile syntax is valid"
+    else
+      echo "  ✗ $jsfile has syntax errors"
+      ERRORS=$((ERRORS + 1))
+    fi
+  done
+else
+  echo "  ⚠ Node.js not found - skipping JavaScript syntax check"
+fi
 
 echo ""
 echo "📊 File Statistics:"

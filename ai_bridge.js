@@ -129,6 +129,9 @@
     return new Promise((resolve, reject) => {
       try {
         // Move tabs one by one to avoid issues
+        // Note: The exact API method may vary by Vivaldi version
+        // This implementation uses vivaldi.workspaces.addTab
+        // Alternative: vivaldi.tabsPrivate.setWorkspace (see below)
         let moved = 0;
         
         const moveNext = () => {

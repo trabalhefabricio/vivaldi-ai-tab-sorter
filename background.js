@@ -62,10 +62,6 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     console.log('Vivaldi AI Tab Sorter installed!');
-    
-    // Open a welcome page with instructions
-    chrome.tabs.create({
-      url: 'https://github.com/trabalhefabricio/vivaldi-ai-tab-sorter#readme'
-    });
+    // Extension installed successfully - users can access documentation from the extension folder
   }
 });
