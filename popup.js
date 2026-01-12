@@ -156,7 +156,8 @@ class TabSorter {
   setupEventListeners() {
     // Save settings on change
     document.getElementById('apiKey').addEventListener('input', (e) => {
-      this.apiKey = e.target.value;
+      // Trim whitespace from API key to avoid issues
+      this.apiKey = e.target.value.trim();
       this.saveSettings();
     });
     
@@ -402,7 +403,9 @@ class TabSorter {
           
           console.log(`Making Gemini API request (attempt ${attempt + 1}/${maxRetries + 1}), local counter at ${this.requestCount}/${this.dailyRequestLimit}`);
           
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.apiKey}`, {
+          // Use stable model instead of experimental to avoid quota issues
+          // gemini-1.5-flash is the stable free-tier model with better quota limits
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
