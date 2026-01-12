@@ -669,15 +669,15 @@ Return ONLY the JSON array, nothing else.`;
       let categorizations = null;
       
       // Strategy 1: Try to extract JSON from markdown code blocks
-      const markdownMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      const markdownMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*\])\s*```/);
       if (markdownMatch) {
         console.log('Found JSON in markdown code block');
         jsonText = markdownMatch[1];
       }
       
-      // Strategy 2: Try to find a JSON array using regex (non-greedy)
+      // Strategy 2: Try to find a JSON array using regex (greedy to capture full array)
       if (!jsonText) {
-        const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           console.log('Found JSON array using regex');
           jsonText = jsonMatch[0];
