@@ -355,10 +355,12 @@ class TabSorter {
       
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-          // Add delay for retries (exponential backoff)
+          // Add delay for retries (exponential backoff with longer waits for rate limits)
           if (attempt > 0) {
-            const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-            this.showStatus(`Rate limit hit. Retrying in ${delayMs / 1000}s... (attempt ${attempt + 1}/${maxRetries + 1})`, 'info');
+            // For rate limit retries, wait at least 60 seconds (Google's free tier resets per minute)
+            const baseDelayMs = 60000; // 60 seconds
+            const delayMs = baseDelayMs * attempt; // 60s, 120s
+            this.showStatus(`Google API rate limit hit. Waiting ${delayMs / 1000}s before retry... (attempt ${attempt + 1}/${maxRetries + 1})`, 'info');
             await new Promise(resolve => setTimeout(resolve, delayMs));
           }
           
@@ -393,11 +395,28 @@ class TabSorter {
             // Check for rate limit errors (429 or quota messages)
             if (response.status === 429 || errorMessage.toLowerCase().includes('quota') || 
                 errorMessage.toLowerCase().includes('rate limit')) {
-              lastError = new Error(`Rate limit exceeded. The free Gemini API has limits: 15 requests/minute, 1500 requests/day. Please wait a moment and try again.`);
               
-              // Retry on rate limit errors
-              if (attempt < maxRetries) {
+              // Create a more specific error message
+              const isQuotaError = errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('exceeded');
+              let specificMessage;
+              
+              if (isQuotaError) {
+                specificMessage = `Google API quota exceeded. Free tier limits: 15 requests/min, 1,500 requests/day, 1M tokens/min. `;
+                specificMessage += `This error comes directly from Google's servers, not the extension. `;
+                specificMessage += `If you just created the API key, wait 1-2 minutes for activation. `;
+                specificMessage += `Otherwise, you may have hit the daily limit - try again tomorrow or check your usage at https://aistudio.google.com/`;
+              } else {
+                specificMessage = `Google API rate limit hit (too many requests too quickly). Wait 60 seconds and try again.`;
+              }
+              
+              lastError = new Error(specificMessage);
+              
+              // Retry on rate limit errors, but not on quota errors (those won't recover quickly)
+              if (attempt < maxRetries && !isQuotaError) {
                 continue;
+              } else if (isQuotaError) {
+                // Don't retry quota errors - they won't recover in minutes
+                break;
               }
             } else {
               // For non-rate-limit errors, throw immediately
