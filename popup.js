@@ -663,13 +663,62 @@ Return ONLY the JSON array, nothing else.`;
   
   parseGeminiResponse(responseText, originalTabs) {
     try {
-      // Extract JSON from response (in case there's extra text)
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        throw new Error('Could not find JSON array in response');
+      console.log('Raw Gemini response:', responseText);
+      
+      // Try to extract JSON from response (handle multiple formats)
+      let jsonText = responseText.trim();
+      
+      // Remove markdown code block formatting if present
+      if (jsonText.startsWith('```')) {
+        // Extract content between ``` markers
+        const codeBlockMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (codeBlockMatch) {
+          jsonText = codeBlockMatch[1].trim();
+        }
       }
       
-      const categorizations = JSON.parse(jsonMatch[0]);
+      // Try to find JSON array in the text
+      const jsonMatch = jsonText.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+      if (!jsonMatch) {
+        console.error('Could not find JSON array in response. Response text:', jsonText);
+        throw new Error('AI response does not contain a valid JSON array. Please try again.');
+      }
+      
+      jsonText = jsonMatch[0];
+      console.log('Extracted JSON:', jsonText);
+      
+      // Parse the JSON
+      let categorizations;
+      try {
+        categorizations = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Failed to parse:', jsonText);
+        throw new Error('AI response contains invalid JSON format. Please try again.');
+      }
+      
+      // Validate the structure
+      if (!Array.isArray(categorizations)) {
+        console.error('Response is not an array:', categorizations);
+        throw new Error('AI response is not an array. Please try again.');
+      }
+      
+      if (categorizations.length === 0) {
+        console.error('Response array is empty');
+        throw new Error('AI response is empty. Please try again.');
+      }
+      
+      // Validate each item has id and category
+      const invalidItems = categorizations.filter(item => 
+        !item || typeof item.id === 'undefined' || !item.category
+      );
+      
+      if (invalidItems.length > 0) {
+        console.error('Response contains invalid items:', invalidItems);
+        throw new Error('AI response contains items without id or category. Please try again.');
+      }
+      
+      console.log('Successfully parsed categorizations:', categorizations);
       
       // Create a map of categorized tabs
       const categorizedTabs = {};
@@ -699,7 +748,11 @@ Return ONLY the JSON array, nothing else.`;
       
     } catch (error) {
       console.error('Error parsing Gemini response:', error);
-      throw new Error('Failed to parse AI response. Please try again.');
+      // Re-throw with original message if it's already descriptive
+      if (error.message.includes('AI response')) {
+        throw error;
+      }
+      throw new Error('Failed to parse AI response: ' + error.message);
     }
   }
   
