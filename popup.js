@@ -9,6 +9,8 @@ class TabSorter {
     this.mode = 'workspaces';
     this.analyzedTabs = null;
     this.allTabs = [];
+    this.selectedModel = 'gemini-1.5-flash'; // Default to stable model
+    this.availableModels = []; // Will be populated from API
     
     // Rate limiting for free tier (15 RPM, 1500 RPD)
     this.lastRequestTime = 0;
@@ -93,13 +95,19 @@ class TabSorter {
         'categories', 
         'logicRules', 
         'removeDuplicates', 
-        'mode'
+        'mode',
+        'selectedModel'
       ]);
       
       // Restore settings to UI
       if (data.apiKey) {
         document.getElementById('apiKey').value = data.apiKey;
         this.apiKey = data.apiKey;
+      }
+      
+      if (data.selectedModel) {
+        document.getElementById('modelSelect').value = data.selectedModel;
+        this.selectedModel = data.selectedModel;
       }
       
       if (data.categories) {
@@ -188,6 +196,11 @@ class TabSorter {
       this.saveSettings();
     });
     
+    document.getElementById('modelSelect').addEventListener('change', (e) => {
+      this.selectedModel = e.target.value;
+      this.saveSettings();
+    });
+    
     document.querySelectorAll('input[name="mode"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         if (e.target.checked) {
@@ -205,6 +218,92 @@ class TabSorter {
     document.getElementById('resetCounter').addEventListener('click', () => {
       this.resetRequestCounter();
     });
+    
+    // Refresh models button
+    document.getElementById('refreshModelsBtn').addEventListener('click', () => {
+      this.fetchAvailableModels();
+    });
+  }
+  
+  async fetchAvailableModels() {
+    if (!this.apiKey || !this.apiKey.trim()) {
+      this.showStatus('Please enter your API key first to fetch available models', 'error');
+      return;
+    }
+    
+    try {
+      this.showStatus('Fetching available models from Google...', 'info');
+      document.getElementById('refreshModelsBtn').disabled = true;
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch models: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Filter for generative models that support generateContent
+      const generativeModels = data.models?.filter(model => 
+        model.supportedGenerationMethods?.includes('generateContent') &&
+        model.name.includes('gemini')
+      ) || [];
+      
+      if (generativeModels.length === 0) {
+        this.showStatus('No compatible models found', 'error');
+        return;
+      }
+      
+      // Update dropdown with fetched models
+      const modelSelect = document.getElementById('modelSelect');
+      const currentValue = modelSelect.value;
+      modelSelect.innerHTML = '';
+      
+      generativeModels.forEach(model => {
+        const modelName = model.name.replace('models/', '');
+        const option = document.createElement('option');
+        option.value = modelName;
+        
+        // Add helpful descriptions based on model name
+        let description = '';
+        if (modelName.includes('flash')) {
+          description = ' (Fast & High Quota)';
+        } else if (modelName.includes('pro')) {
+          description = ' (More Capable)';
+        } else if (modelName.includes('exp')) {
+          description = ' (Experimental)';
+        }
+        
+        option.textContent = modelName + description;
+        modelSelect.appendChild(option);
+      });
+      
+      // Restore previous selection if it exists in the new list
+      if (currentValue && Array.from(modelSelect.options).some(opt => opt.value === currentValue)) {
+        modelSelect.value = currentValue;
+      } else if (generativeModels.length > 0) {
+        // Default to first model if previous selection not found
+        const firstModelName = generativeModels[0].name.replace('models/', '');
+        modelSelect.value = firstModelName;
+        this.selectedModel = firstModelName;
+        this.saveSettings();
+      }
+      
+      this.availableModels = generativeModels;
+      this.showStatus(`✓ Found ${generativeModels.length} compatible models`, 'success');
+      console.log('Available models:', generativeModels.map(m => m.name));
+      
+    } catch (error) {
+      console.error('Error fetching models:', error);
+      this.showStatus(`Error fetching models: ${error.message}`, 'error');
+    } finally {
+      document.getElementById('refreshModelsBtn').disabled = false;
+    }
   }
   
   async saveSettings() {
@@ -214,7 +313,8 @@ class TabSorter {
         categories: this.categories.join(', '),
         logicRules: this.logicRules,
         removeDuplicates: this.removeDuplicates,
-        mode: this.mode
+        mode: this.mode,
+        selectedModel: this.selectedModel
       });
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -401,12 +501,10 @@ class TabSorter {
           // Track request time for rate limiting
           this.lastRequestTime = Date.now();
           
-          console.log(`Making Gemini API request (attempt ${attempt + 1}/${maxRetries + 1}), local counter at ${this.requestCount}/${this.dailyRequestLimit}`);
+          console.log(`Making Gemini API request (attempt ${attempt + 1}/${maxRetries + 1}), local counter at ${this.requestCount}/${this.dailyRequestLimit}, model: ${this.selectedModel}`);
           
-          // Use stable gemini-1.5-flash instead of experimental gemini-2.0-flash-exp
-          // The experimental model has stricter rate limits, potential access restrictions, and may be deprecated
-          // gemini-1.5-flash is stable with better free-tier quota limits (15 RPM, 1500 RPD, 1M TPM)
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`, {
+          // Use the user-selected model
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.selectedModel}:generateContent?key=${this.apiKey}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'

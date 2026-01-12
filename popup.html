@@ -261,6 +261,17 @@
     </div>
     
     <div class="section">
+      <label for="modelSelect">Gemini Model</label>
+      <select id="modelSelect" style="width: 100%; padding: 10px 12px; border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 13px; cursor: pointer;">
+        <option value="gemini-1.5-flash">gemini-1.5-flash (Recommended - Stable)</option>
+        <option value="gemini-1.5-pro">gemini-1.5-pro (More Capable)</option>
+        <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (Experimental)</option>
+      </select>
+      <button id="refreshModelsBtn" style="margin-top: 8px; padding: 8px 12px; background: rgba(255, 255, 255, 0.2); color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; width: 100%;">🔄 Refresh Available Models</button>
+      <div class="help-text">Select which Gemini model to use. Flash models are faster and have higher quotas. Click refresh to fetch latest models from Google.</div>
+    </div>
+    
+    <div class="section">
       <label for="categories">Categories (comma-separated)</label>
       <input type="text" id="categories" placeholder="e.g., Work, Shopping, Research, Social, Entertainment">
       <div class="help-text">List the categories you want to organize your tabs into</div>
