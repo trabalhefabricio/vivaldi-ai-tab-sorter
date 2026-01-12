@@ -72,8 +72,15 @@ class TabSorter {
     });
     
     document.getElementById('categories').addEventListener('input', (e) => {
-      // Sanitize category input - remove any HTML/script tags
-      const sanitized = e.target.value.replace(/<[^>]*>/g, '');
+      // Sanitize category input - remove any HTML/script tags repeatedly to handle nested tags
+      let sanitized = e.target.value;
+      let previousValue;
+      // Keep removing tags until no more tags are found (handles nested tags)
+      do {
+        previousValue = sanitized;
+        sanitized = sanitized.replace(/<[^>]*>/g, '');
+      } while (sanitized !== previousValue);
+      
       if (sanitized !== e.target.value) {
         e.target.value = sanitized;
       }
