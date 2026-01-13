@@ -1112,10 +1112,15 @@ Return ONLY the JSON array, nothing else.`;
         // Move remaining tabs to the new window
         if (tabs.length > 1) {
           const remainingTabIds = tabs.slice(1).map(t => t.id);
-          await chrome.tabs.move(remainingTabIds, {
-            windowId: newWindow.id,
-            index: -1
-          });
+          try {
+            await chrome.tabs.move(remainingTabIds, {
+              windowId: newWindow.id,
+              index: -1
+            });
+          } catch (moveError) {
+            console.error(`Error moving tabs to window ${newWindow.id}:`, moveError);
+            // Continue anyway - some tabs might have moved successfully
+          }
         }
         
         // Get all tabs in the new window (they've been moved)
