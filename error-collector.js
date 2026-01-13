@@ -8,11 +8,13 @@ class ErrorCollector {
     this.info = [];
     this.maxErrors = 100; // Limit stored errors to prevent memory issues
     this.sessionId = this.generateSessionId();
+    this.saveDebounceTimer = null;
+    this.saveDebounceDelay = 1000; // Wait 1 second before saving to reduce storage operations
     this.init();
   }
 
   generateSessionId() {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   init() {
@@ -149,15 +151,22 @@ class ErrorCollector {
   }
 
   async saveErrors() {
-    try {
-      await chrome.storage.local.set({
-        collectedErrors: this.errors,
-        collectedWarnings: this.warnings,
-        lastErrorUpdate: new Date().toISOString()
-      });
-    } catch (e) {
-      console.error('Failed to save errors to storage:', e);
+    // Debounce saves to reduce storage operations
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer);
     }
+    
+    this.saveDebounceTimer = setTimeout(async () => {
+      try {
+        await chrome.storage.local.set({
+          collectedErrors: this.errors,
+          collectedWarnings: this.warnings,
+          lastErrorUpdate: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error('Failed to save errors to storage:', e);
+      }
+    }, this.saveDebounceDelay);
   }
 
   async loadStoredErrors() {

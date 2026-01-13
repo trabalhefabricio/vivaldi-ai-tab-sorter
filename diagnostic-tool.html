@@ -333,7 +333,7 @@
       document.getElementById('warningCount').textContent = warnings.length;
       
       if (window.errorCollector) {
-        document.getElementById('sessionId').textContent = window.errorCollector.sessionId.substr(0, 12) + '...';
+        document.getElementById('sessionId').textContent = window.errorCollector.sessionId.substring(0, 12) + '...';
       }
       
       if (data.lastErrorUpdate) {
@@ -549,8 +549,8 @@
       loadErrors();
       runSystemChecks();
       
-      // Auto-refresh every 5 seconds
-      setInterval(loadErrors, 5000);
+      // Auto-refresh every 10 seconds (increased from 5 for better performance)
+      setInterval(loadErrors, 10000);
     });
   </script>
 </body>
