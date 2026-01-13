@@ -918,7 +918,8 @@ Return ONLY the JSON array, nothing else.`;
         // Create or use a window for consolidation
         targetWindowId = allWindows[0].id;
         
-        // Collect all tabs that need to be organized
+        // First, move all tabs to the target window
+        const movedTabIds = new Set();
         for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
           if (tabs.length === 0) continue;
           
@@ -930,12 +931,30 @@ Return ONLY the JSON array, nothing else.`;
                   windowId: targetWindowId,
                   index: -1
                 });
+                movedTabIds.add(tab.id);
               } catch (err) {
                 console.error(`Error moving tab ${tab.id} to target window:`, err);
               }
             }
           }
-          allTabsToOrganize.push({ category, tabs });
+        }
+        
+        // Re-query tabs in the target window to get updated tab objects
+        const updatedTabs = await chrome.tabs.query({ windowId: targetWindowId });
+        const tabMap = new Map(updatedTabs.map(t => [t.id, t]));
+        
+        // Now organize tabs with updated tab objects
+        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
+          if (tabs.length === 0) continue;
+          
+          // Get updated tab objects for this category
+          const updatedCategoryTabs = tabs
+            .map(t => tabMap.get(t.id))
+            .filter(t => t !== undefined);
+          
+          if (updatedCategoryTabs.length > 0) {
+            allTabsToOrganize.push({ category, tabs: updatedCategoryTabs });
+          }
         }
       } else {
         // Current window only
