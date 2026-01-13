@@ -13,9 +13,6 @@ class TabSorter {
     this.selectedModel = 'gemini-1.5-flash'; // Default to stable model
     this.availableModels = []; // Will be populated from API
     
-    // Colors available for tab groups in Chrome/Vivaldi
-    this.availableColors = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
-    
     // Rate limiting for free tier (15 RPM, 1500 RPD)
     this.lastRequestTime = 0;
     this.minRequestInterval = 4000; // 4 seconds between requests (15 RPM = 1 request per 4s)
@@ -925,6 +922,11 @@ Return ONLY the JSON array, nothing else.`;
       console.log(`Stack mode: scope=${this.stackScope}`);
       console.log('Analyzed tabs:', Object.keys(this.analyzedTabs).map(cat => `${cat}: ${this.analyzedTabs[cat].length} tabs`).join(', '));
       
+      // Check if Vivaldi's tab stacking API is available
+      if (typeof vivaldi === 'undefined' || !vivaldi.tabsPrivate || !vivaldi.tabsPrivate.insertIntoTabStack) {
+        throw new Error('Vivaldi tab stacking API is not available. Please ensure you are using Vivaldi browser.');
+      }
+      
       let targetWindowId;
       let allTabsToOrganize = [];
       
@@ -989,12 +991,11 @@ Return ONLY the JSON array, nothing else.`;
         }
       }
       
-      // Now create colored groups with names for each category
-      let colorIndex = 0;
-      let groupsCreated = 0;
-      let groupsFailed = 0;
+      // Now create tab stacks using Vivaldi's API for each category
+      let stacksCreated = 0;
+      let stacksFailed = 0;
       
-      console.log(`Attempting to create ${allTabsToOrganize.length} tab groups...`);
+      console.log(`Attempting to create ${allTabsToOrganize.length} tab stacks using Vivaldi API...`);
       
       if (allTabsToOrganize.length === 0) {
         console.warn('No tabs to organize! allTabsToOrganize is empty.');
@@ -1005,11 +1006,10 @@ Return ONLY the JSON array, nothing else.`;
         if (tabs.length === 0) continue;
         
         const tabIds = tabs.map(t => t.id);
-        const color = this.availableColors[colorIndex % this.availableColors.length];
         
-        console.log(`Creating group "${category}" with color ${color} and ${tabIds.length} tabs (IDs: ${tabIds.join(', ')})`);
+        console.log(`Creating Vivaldi tab stack for "${category}" with ${tabIds.length} tabs (IDs: ${tabIds.join(', ')})`);
         
-        // Verify tabs still exist before grouping
+        // Verify tabs still exist before stacking
         try {
           const validTabIds = [];
           for (const tabId of tabIds) {
@@ -1030,28 +1030,44 @@ Return ONLY the JSON array, nothing else.`;
           
           console.log(`  -> Verified ${validTabIds.length}/${tabIds.length} tabs still exist`);
           
-          const groupId = await chrome.tabs.group({
-            tabIds: validTabIds
-          });
+          // In Vivaldi, tab stacks are hierarchical: first tab is the parent
+          if (validTabIds.length === 1) {
+            console.log(`  -> Only one tab in category "${category}", no stack needed`);
+            stacksCreated++;
+            continue;
+          }
           
-          console.log(`  -> Group created with ID: ${groupId}`);
+          const parentTabId = validTabIds[0];
+          console.log(`  -> Using tab ${parentTabId} as parent for stack`);
           
-          // Update group with color and category name
-          await chrome.tabGroups.update(groupId, {
-            title: category,
-            color: color,
-            collapsed: false
-          });
+          // Add remaining tabs to the parent's stack
+          for (let i = 1; i < validTabIds.length; i++) {
+            const childTabId = validTabIds[i];
+            try {
+              await new Promise((resolve, reject) => {
+                vivaldi.tabsPrivate.insertIntoTabStack(childTabId, parentTabId, (result) => {
+                  if (chrome.runtime.lastError) {
+                    console.warn(`Warning adding tab ${childTabId} to stack:`, chrome.runtime.lastError.message);
+                    resolve(); // Don't fail the whole stack on one tab
+                  } else {
+                    console.log(`  -> Added tab ${childTabId} to stack under parent ${parentTabId}`);
+                    resolve();
+                  }
+                });
+              });
+            } catch (err) {
+              console.warn(`Error adding tab ${childTabId} to stack:`, err);
+              // Continue with other tabs
+            }
+          }
           
-          console.log(`  -> Group updated with title "${category}" and color ${color}`);
-          
-          colorIndex++;
-          groupsCreated++;
+          console.log(`  -> Created stack for "${category}" with ${validTabIds.length} tabs`);
+          stacksCreated++;
         } catch (err) {
-          console.error(`Error creating group for ${category}:`, err);
+          console.error(`Error creating stack for ${category}:`, err);
           console.error(`  -> Tab IDs that failed:`, tabIds);
           console.error(`  -> Error details:`, err.message, err.stack);
-          groupsFailed++;
+          stacksFailed++;
         }
       }
       
@@ -1060,10 +1076,10 @@ Return ONLY the JSON array, nothing else.`;
         await chrome.windows.update(targetWindowId, { focused: true });
       }
       
-      console.log(`✓ Created ${groupsCreated} colored tab stacks (${groupsFailed} failed)`);
+      console.log(`✓ Created ${stacksCreated} Vivaldi tab stacks (${stacksFailed} failed)`);
       
-      if (groupsCreated === 0 && allTabsToOrganize.length > 0) {
-        throw new Error(`Failed to create any tab groups. Attempted ${allTabsToOrganize.length} groups, all failed. Check the browser console for details.`);
+      if (stacksCreated === 0 && allTabsToOrganize.length > 0) {
+        throw new Error(`Failed to create any tab stacks. Attempted ${allTabsToOrganize.length} stacks, all failed. Check the browser console for details.`);
       }
       
       
@@ -1076,8 +1092,7 @@ Return ONLY the JSON array, nothing else.`;
   async applyWindowMode() {
     try {
       // Create separate windows for each category
-      // Each window will have tabs grouped with the category name as the group title
-      let colorIndex = 0;
+      // In Vivaldi, we can optionally create tab stacks within each window
       let windowsCreated = 0;
       
       for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
@@ -1101,37 +1116,41 @@ Return ONLY the JSON array, nothing else.`;
           });
         }
         
-        // Get all tabs in the new window (they've been moved)
-        const windowTabs = await chrome.tabs.query({ windowId: newWindow.id });
-        const tabIds = windowTabs.map(t => t.id);
-        
-        // Group all tabs together with the category name and color
-        // Only group if we have tabs and colors available
-        if (tabIds.length > 0 && this.availableColors && this.availableColors.length > 0) {
+        // Optionally create a tab stack within this window using Vivaldi API
+        // This groups the tabs visually within the window
+        if (tabs.length > 1 && typeof vivaldi !== 'undefined' && 
+            vivaldi.tabsPrivate && vivaldi.tabsPrivate.insertIntoTabStack) {
           try {
-            const color = this.availableColors[colorIndex % this.availableColors.length];
-            const groupId = await chrome.tabs.group({
-              tabIds: tabIds
-            });
+            // Get all tabs in the new window (they've been moved)
+            const windowTabs = await chrome.tabs.query({ windowId: newWindow.id });
             
-            // Update group with color and category name as title
-            await chrome.tabGroups.update(groupId, {
-              title: category,
-              color: color,
-              collapsed: false
-            });
-            
-            console.log(`✓ Created group "${category}" with color ${color} in window ${newWindow.id}`);
-            colorIndex++;
+            if (windowTabs.length > 1) {
+              const parentTabId = windowTabs[0].id;
+              
+              // Stack all tabs under the first one
+              for (let i = 1; i < windowTabs.length; i++) {
+                const childTabId = windowTabs[i].id;
+                await new Promise((resolve) => {
+                  vivaldi.tabsPrivate.insertIntoTabStack(childTabId, parentTabId, () => {
+                    if (chrome.runtime.lastError) {
+                      console.warn(`Warning stacking tab ${childTabId}:`, chrome.runtime.lastError.message);
+                    }
+                    resolve();
+                  });
+                });
+              }
+              console.log(`✓ Created tab stack for "${category}" in window ${newWindow.id}`);
+            }
           } catch (err) {
-            console.error(`Error creating group for ${category}:`, err);
+            console.warn(`Could not create tab stack in window for ${category}:`, err);
+            // Continue anyway - window is still created
           }
         }
         
         windowsCreated++;
       }
       
-      console.log(`✓ Created ${windowsCreated} windows with grouped tabs`);
+      console.log(`✓ Created ${windowsCreated} separate windows`);
       
     } catch (error) {
       console.error('Error in window mode:', error);

@@ -5,8 +5,7 @@
   "description": "Intelligent tab organizer for Vivaldi using Gemini AI - sorts tabs into Workspaces, Tab Stacks, or Windows",
   "permissions": [
     "tabs",
-    "storage",
-    "tabGroups"
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"
