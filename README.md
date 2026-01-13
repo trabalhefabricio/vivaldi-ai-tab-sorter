@@ -43,10 +43,11 @@
 - [EXAMPLES.md](EXAMPLES.md) - Configuration examples for different use cases
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Problem-solving guide
 
-### Testing
+### Testing & Diagnostics
 - [QUICK_TEST.md](QUICK_TEST.md) - 5-minute smoke test to verify extension works
 - [MANUAL_TESTING.md](MANUAL_TESTING.md) - Comprehensive manual testing guide (15 test suites)
 - [TESTING_NOTES.md](TESTING_NOTES.md) - AI testing limitations and requirements
+- [ERROR_COLLECTION_GUIDE.md](ERROR_COLLECTION_GUIDE.md) - **NEW!** How to capture and report errors precisely
 
 ## 🎯 Perfect For
 

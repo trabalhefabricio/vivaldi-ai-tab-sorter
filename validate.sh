@@ -14,6 +14,8 @@ REQUIRED_FILES=(
   "popup.js"
   "background.js"
   "ai_bridge.js"
+  "error-collector.js"
+  "diagnostic-tool.html"
   "icons/icon16.png"
   "icons/icon48.png"
   "icons/icon128.png"
@@ -24,6 +26,7 @@ REQUIRED_FILES=(
   "QUICK_TEST.md"
   "TESTING_NOTES.md"
   "TESTING_DOCUMENTATION_SUMMARY.md"
+  "ERROR_COLLECTION_GUIDE.md"
   "LICENSE"
 )
 
@@ -67,7 +70,7 @@ echo "🔧 Checking JavaScript syntax..."
 
 # Check JavaScript files for basic syntax errors
 if command -v node >/dev/null 2>&1; then
-  for jsfile in popup.js background.js ai_bridge.js; do
+  for jsfile in popup.js background.js ai_bridge.js error-collector.js; do
     if node -c "$jsfile" 2>/dev/null; then
       echo "  ✓ $jsfile syntax is valid"
     else
