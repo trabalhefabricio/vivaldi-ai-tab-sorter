@@ -1061,7 +1061,49 @@ Return ONLY the JSON array, nothing else.`;
             }
           }
           
-          console.log(`  -> Created stack for "${category}" with ${validTabIds.length} tabs`);
+          // Set color and name on the parent tab (Vivaldi tab stack properties)
+          // Colors available in Vivaldi: 'blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan', 'grey'
+          const stackColors = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'];
+          const stackColor = stackColors[stacksCreated % stackColors.length];
+          
+          try {
+            // Set the stack color on the parent tab
+            await new Promise((resolve) => {
+              if (vivaldi.tabsPrivate.update) {
+                vivaldi.tabsPrivate.update(parentTabId, { stackColor: stackColor }, () => {
+                  if (chrome.runtime.lastError) {
+                    console.warn(`Warning setting stack color:`, chrome.runtime.lastError.message);
+                  } else {
+                    console.log(`  -> Set stack color to ${stackColor}`);
+                  }
+                  resolve();
+                });
+              } else {
+                resolve();
+              }
+            });
+            
+            // Set the stack name/title on the parent tab
+            await new Promise((resolve) => {
+              if (vivaldi.tabsPrivate.update) {
+                vivaldi.tabsPrivate.update(parentTabId, { stackName: category }, () => {
+                  if (chrome.runtime.lastError) {
+                    console.warn(`Warning setting stack name:`, chrome.runtime.lastError.message);
+                  } else {
+                    console.log(`  -> Set stack name to "${category}"`);
+                  }
+                  resolve();
+                });
+              } else {
+                resolve();
+              }
+            });
+          } catch (err) {
+            console.warn(`Could not set stack color/name for ${category}:`, err);
+            // Continue anyway - stack is still created
+          }
+          
+          console.log(`  -> Created stack for "${category}" with ${validTabIds.length} tabs, color: ${stackColor}`);
           stacksCreated++;
         } catch (err) {
           console.error(`Error creating stack for ${category}:`, err);
@@ -1139,7 +1181,34 @@ Return ONLY the JSON array, nothing else.`;
                   });
                 });
               }
-              console.log(`✓ Created tab stack for "${category}" in window ${newWindow.id}`);
+              
+              // Set color and name on the parent tab
+              const stackColors = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'];
+              const stackColor = stackColors[windowsCreated % stackColors.length];
+              
+              // Set stack color
+              if (vivaldi.tabsPrivate.update) {
+                await new Promise((resolve) => {
+                  vivaldi.tabsPrivate.update(parentTabId, { stackColor: stackColor }, () => {
+                    if (chrome.runtime.lastError) {
+                      console.warn(`Warning setting stack color:`, chrome.runtime.lastError.message);
+                    }
+                    resolve();
+                  });
+                });
+                
+                // Set stack name
+                await new Promise((resolve) => {
+                  vivaldi.tabsPrivate.update(parentTabId, { stackName: category }, () => {
+                    if (chrome.runtime.lastError) {
+                      console.warn(`Warning setting stack name:`, chrome.runtime.lastError.message);
+                    }
+                    resolve();
+                  });
+                });
+              }
+              
+              console.log(`✓ Created tab stack for "${category}" with color ${stackColor} in window ${newWindow.id}`);
             }
           } catch (err) {
             console.warn(`Could not create tab stack in window for ${category}:`, err);

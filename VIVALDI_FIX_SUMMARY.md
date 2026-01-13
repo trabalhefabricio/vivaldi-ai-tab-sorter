@@ -57,7 +57,7 @@ for (let i = 1; i < validTabIds.length; i++) {
 - Vivaldi uses parent-child relationships, not group IDs
 - First tab in each category becomes the "parent"
 - Other tabs are inserted into the parent's stack
-- No colors or titles (Vivaldi limitation)
+- Colors and names are set via vivaldi.tabsPrivate.update() on the parent tab
 - API check ensures proper error messaging
 
 #### 3. popup.js - Windows Mode
@@ -83,8 +83,8 @@ for (let i = 1; i < validTabIds.length; i++) {
 |---------|------------------|-------------------|
 | **API** | `chrome.tabGroups` | `vivaldi.tabsPrivate` |
 | **Structure** | Flat groups with IDs | Hierarchical parent-child |
-| **Colors** | Yes, 8 colors | No |
-| **Titles** | Yes, custom titles | No |
+| **Colors** | Yes, 8 colors | Yes, 8 colors |
+| **Titles** | Yes, custom titles | Yes, custom names |
 | **Collapsible** | Yes | Yes |
 | **Availability** | Manifest V3 Chrome | Vivaldi only |
 
@@ -93,6 +93,13 @@ for (let i = 1; i < validTabIds.length; i++) {
 Key methods used:
 - `vivaldi.tabsPrivate.insertIntoTabStack(childTabId, parentTabId, callback)`
   - Inserts a tab into an existing stack
+  - Creates hierarchical relationship
+  - First tab is always the parent
+
+- `vivaldi.tabsPrivate.update(tabId, updateProperties, callback)`
+  - Updates tab properties including stack color and name
+  - Properties: `{ stackColor: 'blue', stackName: 'Category Name' }`
+  - Colors: 'blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'
   - Creates hierarchical relationship
   - First tab is always the parent
 
