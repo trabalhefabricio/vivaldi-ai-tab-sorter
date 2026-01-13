@@ -111,8 +111,24 @@ class TabSorter {
       }
       
       if (data.selectedModel) {
-        document.getElementById('modelSelect').value = data.selectedModel;
-        this.selectedModel = data.selectedModel;
+        const modelSelect = document.getElementById('modelSelect');
+        // Validate that the saved model exists in the dropdown
+        let modelExists = false;
+        for (const option of modelSelect.options) {
+          if (option.value === data.selectedModel) {
+            modelExists = true;
+            break;
+          }
+        }
+        
+        if (modelExists) {
+          modelSelect.value = data.selectedModel;
+          this.selectedModel = data.selectedModel;
+        } else {
+          // Saved model doesn't exist, use current default
+          console.log('Saved model not found in dropdown, using default');
+          this.selectedModel = modelSelect.value;
+        }
       }
       
       if (data.categories) {
@@ -157,7 +173,10 @@ class TabSorter {
     
     if (this.requestCount > 0) {
       usageInfoDiv.style.display = 'block';
-      const percentUsed = Math.round((this.requestCount / this.dailyRequestLimit) * 100);
+      // Defensive check to prevent division by zero
+      const percentUsed = this.dailyRequestLimit > 0 
+        ? Math.round((this.requestCount / this.dailyRequestLimit) * 100)
+        : 0;
       let color = 'rgba(72, 187, 120, 0.9)'; // green
       
       if (percentUsed > 80) {
@@ -933,6 +952,11 @@ Return ONLY the JSON array, nothing else.`;
         console.log('Consolidating tabs from all windows into one window...');
         const allWindows = await chrome.windows.getAll({ populate: true });
         
+        // Validate we have at least one window
+        if (!allWindows || allWindows.length === 0) {
+          throw new Error('No windows found. Cannot consolidate tabs.');
+        }
+        
         // Create or use a window for consolidation
         targetWindowId = allWindows[0].id;
         
@@ -1095,10 +1119,15 @@ Return ONLY the JSON array, nothing else.`;
         // Move remaining tabs to the new window
         if (tabs.length > 1) {
           const remainingTabIds = tabs.slice(1).map(t => t.id);
-          await chrome.tabs.move(remainingTabIds, {
-            windowId: newWindow.id,
-            index: -1
-          });
+          try {
+            await chrome.tabs.move(remainingTabIds, {
+              windowId: newWindow.id,
+              index: -1
+            });
+          } catch (moveError) {
+            console.error(`Error moving tabs to window ${newWindow.id}:`, moveError);
+            // Continue anyway - some tabs might have moved successfully
+          }
         }
         
         // Get all tabs in the new window (they've been moved)
