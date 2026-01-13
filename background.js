@@ -82,12 +82,15 @@ async function organizeViaExtensionsAPI(categorizedTabs) {
     // Close the duplicate tab that was created (if the original tab still exists)
     if (newWindow.tabs && newWindow.tabs.length > 0) {
       const newTabId = newWindow.tabs[0].id;
-      // Only close if we're moving existing tabs
-      if (tabs.length > 1 && firstTab.id !== newTabId) {
+      // Close the duplicate tab that was created with url parameter
+      // Only if it's different from the original tab we're trying to move
+      if (firstTab.id !== newTabId) {
         try {
           await chrome.tabs.remove(newTabId);
+          console.log(`Removed duplicate tab ${newTabId} from window ${newWindow.id}`);
         } catch (e) {
           // Ignore errors closing the duplicate tab
+          console.warn(`Could not remove duplicate tab ${newTabId}:`, e.message);
         }
       }
     }
