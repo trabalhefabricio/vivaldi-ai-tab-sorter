@@ -7,6 +7,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .then(result => sendResponse(result))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // Will respond asynchronously
+  } else if (request.action === 'organizeToStacks') {
+    handleTabStackOrganization(request.categorizedTabs, request.targetWindowId)
+      .then(result => sendResponse(result))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true; // Will respond asynchronously
   }
 });
 
@@ -148,6 +153,57 @@ async function organizeViaBridge(categorizedTabs) {
   // If no response from bridge, throw error
   console.error('No response from Vivaldi bridge script');
   throw new Error('Vivaldi bridge script not responding. Using fallback method instead.');
+}
+
+// Tab Stack Organization Handler
+async function handleTabStackOrganization(categorizedTabs, targetWindowId) {
+  try {
+    console.log('Starting tab stack organization via bridge...');
+    
+    // Send message to the bridge via storage
+    await chrome.storage.local.set({
+      tabStackCommand: {
+        action: 'createStacks',
+        categorizedTabs: categorizedTabs,
+        targetWindowId: targetWindowId,
+        timestamp: Date.now()
+      }
+    });
+    
+    console.log('Tab stack command sent to storage, waiting for bridge response...');
+    
+    // Wait for the bridge to process
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Check if the bridge responded
+    const result = await chrome.storage.local.get('tabStackCommandResult');
+    
+    if (result.tabStackCommandResult && 
+        result.tabStackCommandResult.timestamp > Date.now() - 5000) {
+      console.log('Bridge responded:', result.tabStackCommandResult);
+      
+      // Clear the command and result
+      await chrome.storage.local.remove(['tabStackCommand', 'tabStackCommandResult']);
+      
+      if (result.tabStackCommandResult.success) {
+        return { 
+          success: true, 
+          method: 'bridge',
+          stacksCreated: result.tabStackCommandResult.stacksCreated || 0
+        };
+      } else {
+        throw new Error(result.tabStackCommandResult.error || 'Tab stack operation failed');
+      }
+    }
+    
+    // If no response from bridge, throw error
+    console.error('No response from Vivaldi bridge script for tab stacking');
+    throw new Error('Vivaldi bridge script not responding. Make sure the bridge script is installed in window.html.');
+    
+  } catch (error) {
+    console.error('Error in tab stack organization:', error);
+    throw error;
+  }
 }
 
 // Monitor storage changes for bridge communication

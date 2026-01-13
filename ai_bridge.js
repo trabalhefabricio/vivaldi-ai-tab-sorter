@@ -67,6 +67,38 @@
         });
       }
     }
+    
+    // Handle tab stacking commands
+    if (changes.tabStackCommand && changes.tabStackCommand.newValue) {
+      const command = changes.tabStackCommand.newValue;
+      console.log('Received tab stack command:', command);
+      
+      try {
+        if (command.action === 'createStacks') {
+          const stacksCreated = await createTabStacks(command.categorizedTabs, command.targetWindowId);
+          
+          // Send success response
+          await chrome.storage.local.set({
+            tabStackCommandResult: {
+              success: true,
+              stacksCreated: stacksCreated,
+              timestamp: Date.now()
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error processing tab stack command:', error);
+        
+        // Send error response
+        await chrome.storage.local.set({
+          tabStackCommandResult: {
+            success: false,
+            error: error.message,
+            timestamp: Date.now()
+          }
+        });
+      }
+    }
   });
   
   async function organizeTabsToWorkspaces(categorizedTabs) {
@@ -189,6 +221,107 @@
     } else {
       // Fallback to standard method
       return moveTabsToWorkspace(tabIds, workspaceId);
+    }
+  }
+  
+  // Create Tab Stacks using Vivaldi's tabsPrivate API
+  async function createTabStacks(categorizedTabs, targetWindowId) {
+    try {
+      console.log('Creating tab stacks with Vivaldi tabsPrivate API...');
+      
+      if (typeof vivaldi === 'undefined' || !vivaldi.tabsPrivate) {
+        throw new Error('Vivaldi tabsPrivate API not available');
+      }
+      
+      let stacksCreated = 0;
+      const stackColors = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'];
+      
+      // Get all tabs organized by category
+      const categories = Object.entries(categorizedTabs).filter(([cat, tabs]) => tabs.length > 0);
+      
+      for (let i = 0; i < categories.length; i++) {
+        const [category, tabs] = categories[i];
+        
+        if (tabs.length === 0) continue;
+        if (category === 'Uncategorized') continue;
+        
+        console.log(`Creating stack for "${category}" with ${tabs.length} tabs`);
+        
+        // Filter to only tabs in target window if specified
+        let tabsToStack = tabs;
+        if (targetWindowId) {
+          tabsToStack = tabs.filter(t => t.windowId === targetWindowId);
+        }
+        
+        if (tabsToStack.length === 0) {
+          console.log(`No tabs in target window for "${category}", skipping`);
+          continue;
+        }
+        
+        if (tabsToStack.length === 1) {
+          console.log(`Only one tab for "${category}", no stack needed`);
+          stacksCreated++;
+          continue;
+        }
+        
+        const parentTabId = tabsToStack[0].id;
+        console.log(`Using tab ${parentTabId} as parent for stack`);
+        
+        // Add remaining tabs to the parent's stack
+        for (let j = 1; j < tabsToStack.length; j++) {
+          const childTabId = tabsToStack[j].id;
+          
+          await new Promise((resolve) => {
+            vivaldi.tabsPrivate.insertIntoTabStack(childTabId, parentTabId, () => {
+              if (chrome.runtime.lastError) {
+                console.warn(`Warning adding tab ${childTabId} to stack:`, chrome.runtime.lastError.message);
+              } else {
+                console.log(`Added tab ${childTabId} to stack under parent ${parentTabId}`);
+              }
+              resolve();
+            });
+          });
+        }
+        
+        // Set color and name on the parent tab
+        const stackColor = stackColors[i % stackColors.length];
+        
+        // Set stack color
+        if (vivaldi.tabsPrivate.update) {
+          await new Promise((resolve) => {
+            vivaldi.tabsPrivate.update(parentTabId, { stackColor: stackColor }, () => {
+              if (chrome.runtime.lastError) {
+                console.warn(`Warning setting stack color:`, chrome.runtime.lastError.message);
+              } else {
+                console.log(`Set stack color to ${stackColor}`);
+              }
+              resolve();
+            });
+          });
+          
+          // Set stack name
+          await new Promise((resolve) => {
+            vivaldi.tabsPrivate.update(parentTabId, { stackName: category }, () => {
+              if (chrome.runtime.lastError) {
+                console.warn(`Warning setting stack name:`, chrome.runtime.lastError.message);
+              } else {
+                console.log(`Set stack name to "${category}"`);
+              }
+              resolve();
+            });
+          });
+        }
+        
+        console.log(`Created stack for "${category}" with ${tabsToStack.length} tabs, color: ${stackColor}`);
+        stacksCreated++;
+      }
+      
+      console.log(`Successfully created ${stacksCreated} tab stacks`);
+      return stacksCreated;
+      
+    } catch (error) {
+      console.error('Error creating tab stacks:', error);
+      throw error;
     }
   }
   

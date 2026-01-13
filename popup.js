@@ -922,13 +922,7 @@ Return ONLY the JSON array, nothing else.`;
       console.log(`Stack mode: scope=${this.stackScope}`);
       console.log('Analyzed tabs:', Object.keys(this.analyzedTabs).map(cat => `${cat}: ${this.analyzedTabs[cat].length} tabs`).join(', '));
       
-      // Check if Vivaldi's tab stacking API is available
-      if (typeof vivaldi === 'undefined' || !vivaldi.tabsPrivate || !vivaldi.tabsPrivate.insertIntoTabStack) {
-        throw new Error('Vivaldi tab stacking API is not available. Please ensure you are using Vivaldi browser.');
-      }
-      
       let targetWindowId;
-      let allTabsToOrganize = [];
       
       if (this.stackScope === 'all') {
         // Consolidate all windows: get all tabs from all windows
@@ -939,7 +933,6 @@ Return ONLY the JSON array, nothing else.`;
         targetWindowId = allWindows[0].id;
         
         // First, move all tabs to the target window
-        const movedTabIds = new Set();
         for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
           if (tabs.length === 0) continue;
           
@@ -951,7 +944,6 @@ Return ONLY the JSON array, nothing else.`;
                   windowId: targetWindowId,
                   index: -1
                 });
-                movedTabIds.add(tab.id);
               } catch (err) {
                 console.error(`Error moving tab ${tab.id} to target window:`, err);
               }
@@ -963,167 +955,42 @@ Return ONLY the JSON array, nothing else.`;
         const updatedTabs = await chrome.tabs.query({ windowId: targetWindowId });
         const tabMap = new Map(updatedTabs.map(t => [t.id, t]));
         
-        // Now organize tabs with updated tab objects
+        // Update analyzedTabs with new tab objects
+        const updatedAnalyzedTabs = {};
         for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
-          if (tabs.length === 0) continue;
-          
-          // Get updated tab objects for this category
-          const updatedCategoryTabs = tabs
+          updatedAnalyzedTabs[category] = tabs
             .map(t => tabMap.get(t.id))
             .filter(t => t !== undefined);
-          
-          if (updatedCategoryTabs.length > 0) {
-            allTabsToOrganize.push({ category, tabs: updatedCategoryTabs });
-          }
         }
+        this.analyzedTabs = updatedAnalyzedTabs;
       } else {
         // Current window only
         const currentWindow = await chrome.windows.getCurrent();
         targetWindowId = currentWindow.id;
-        
-        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
-          if (tabs.length === 0) continue;
-          // Only include tabs from current window
-          const tabsInCurrentWindow = tabs.filter(t => t.windowId === currentWindow.id);
-          if (tabsInCurrentWindow.length > 0) {
-            allTabsToOrganize.push({ category, tabs: tabsInCurrentWindow });
-          }
-        }
       }
       
-      // Now create tab stacks using Vivaldi's API for each category
-      let stacksCreated = 0;
-      let stacksFailed = 0;
+      // Send message to background script to organize via bridge
+      console.log('Requesting tab stack organization via bridge...');
       
-      console.log(`Attempting to create ${allTabsToOrganize.length} tab stacks using Vivaldi API...`);
+      const response = await chrome.runtime.sendMessage({
+        action: 'organizeToStacks',
+        categorizedTabs: this.analyzedTabs,
+        targetWindowId: targetWindowId
+      });
       
-      if (allTabsToOrganize.length === 0) {
-        console.warn('No tabs to organize! allTabsToOrganize is empty.');
-        throw new Error('No tabs to organize. This could mean all tabs were filtered out or the analysis data was lost.');
+      if (!response || !response.success) {
+        const errorMsg = response?.error || 'Failed to organize tabs into stacks';
+        console.error('Tab stack organization failed:', errorMsg);
+        throw new Error(errorMsg);
       }
       
-      for (const { category, tabs } of allTabsToOrganize) {
-        if (tabs.length === 0) continue;
-        
-        const tabIds = tabs.map(t => t.id);
-        
-        console.log(`Creating Vivaldi tab stack for "${category}" with ${tabIds.length} tabs (IDs: ${tabIds.join(', ')})`);
-        
-        // Verify tabs still exist before stacking
-        try {
-          const validTabIds = [];
-          for (const tabId of tabIds) {
-            try {
-              const tab = await chrome.tabs.get(tabId);
-              if (tab) {
-                validTabIds.push(tabId);
-              }
-            } catch (err) {
-              console.warn(`Tab ${tabId} no longer exists, skipping`);
-            }
-          }
-          
-          if (validTabIds.length === 0) {
-            console.warn(`No valid tabs found for category "${category}", skipping`);
-            continue;
-          }
-          
-          console.log(`  -> Verified ${validTabIds.length}/${tabIds.length} tabs still exist`);
-          
-          // In Vivaldi, tab stacks are hierarchical: first tab is the parent
-          if (validTabIds.length === 1) {
-            console.log(`  -> Only one tab in category "${category}", no stack needed`);
-            stacksCreated++;
-            continue;
-          }
-          
-          const parentTabId = validTabIds[0];
-          console.log(`  -> Using tab ${parentTabId} as parent for stack`);
-          
-          // Add remaining tabs to the parent's stack
-          for (let i = 1; i < validTabIds.length; i++) {
-            const childTabId = validTabIds[i];
-            try {
-              await new Promise((resolve) => {
-                vivaldi.tabsPrivate.insertIntoTabStack(childTabId, parentTabId, () => {
-                  if (chrome.runtime.lastError) {
-                    console.warn(`Warning adding tab ${childTabId} to stack:`, chrome.runtime.lastError.message);
-                    resolve(); // Don't fail the whole stack on one tab
-                  } else {
-                    console.log(`  -> Added tab ${childTabId} to stack under parent ${parentTabId}`);
-                    resolve();
-                  }
-                });
-              });
-            } catch (err) {
-              console.warn(`Error adding tab ${childTabId} to stack:`, err);
-              // Continue with other tabs
-            }
-          }
-          
-          // Set color and name on the parent tab (Vivaldi tab stack properties)
-          // Colors available in Vivaldi: 'blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'
-          const stackColors = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'];
-          const stackColor = stackColors[stacksCreated % stackColors.length];
-          
-          try {
-            // Set the stack color on the parent tab
-            await new Promise((resolve) => {
-              if (vivaldi.tabsPrivate.update) {
-                vivaldi.tabsPrivate.update(parentTabId, { stackColor: stackColor }, () => {
-                  if (chrome.runtime.lastError) {
-                    console.warn(`Warning setting stack color:`, chrome.runtime.lastError.message);
-                  } else {
-                    console.log(`  -> Set stack color to ${stackColor}`);
-                  }
-                  resolve();
-                });
-              } else {
-                resolve();
-              }
-            });
-            
-            // Set the stack name/title on the parent tab
-            await new Promise((resolve) => {
-              if (vivaldi.tabsPrivate.update) {
-                vivaldi.tabsPrivate.update(parentTabId, { stackName: category }, () => {
-                  if (chrome.runtime.lastError) {
-                    console.warn(`Warning setting stack name:`, chrome.runtime.lastError.message);
-                  } else {
-                    console.log(`  -> Set stack name to "${category}"`);
-                  }
-                  resolve();
-                });
-              } else {
-                resolve();
-              }
-            });
-          } catch (err) {
-            console.warn(`Could not set stack color/name for ${category}:`, err);
-            // Continue anyway - stack is still created
-          }
-          
-          console.log(`  -> Created stack for "${category}" with ${validTabIds.length} tabs, color: ${stackColor}`);
-          stacksCreated++;
-        } catch (err) {
-          console.error(`Error creating stack for ${category}:`, err);
-          console.error(`  -> Tab IDs that failed:`, tabIds);
-          console.error(`  -> Error details:`, err.message, err.stack);
-          stacksFailed++;
-        }
-      }
+      console.log('Tab stack organization successful via', response.method || 'bridge');
+      console.log(`✓ Created ${response.stacksCreated || 0} tab stacks`);
       
       // Focus the target window
       if (targetWindowId) {
         await chrome.windows.update(targetWindowId, { focused: true });
       }
-      
-      console.log(`✓ Created ${stacksCreated} Vivaldi tab stacks (${stacksFailed} failed)`);
-      
-      if (stacksCreated === 0 && allTabsToOrganize.length > 0) {
-        throw new Error(`Failed to create any tab stacks. Attempted ${allTabsToOrganize.length} stacks, all failed. Check the browser console for details.`);
-      }
-      
       
     } catch (error) {
       console.error('Error in stack mode:', error);
@@ -1134,8 +1001,8 @@ Return ONLY the JSON array, nothing else.`;
   async applyWindowMode() {
     try {
       // Create separate windows for each category
-      // In Vivaldi, we can optionally create tab stacks within each window
       let windowsCreated = 0;
+      const windowIdsByCategory = {};
       
       for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
         if (tabs.length === 0) continue;
@@ -1158,68 +1025,42 @@ Return ONLY the JSON array, nothing else.`;
           });
         }
         
-        // Optionally create a tab stack within this window using Vivaldi API
-        // This groups the tabs visually within the window
-        if (tabs.length > 1 && typeof vivaldi !== 'undefined' && 
-            vivaldi.tabsPrivate && vivaldi.tabsPrivate.insertIntoTabStack) {
+        windowIdsByCategory[category] = newWindow.id;
+        windowsCreated++;
+      }
+      
+      console.log(`✓ Created ${windowsCreated} separate windows`);
+      
+      // Now create tab stacks in each window using the bridge
+      // Build categorized tabs by window
+      const tabsByWindow = {};
+      for (const [category, windowId] of Object.entries(windowIdsByCategory)) {
+        // Get fresh tab data for this window
+        const windowTabs = await chrome.tabs.query({ windowId: windowId });
+        tabsByWindow[category] = windowTabs;
+      }
+      
+      // Request stacking for each window via bridge
+      for (const [category, tabs] of Object.entries(tabsByWindow)) {
+        if (tabs.length > 1) {
           try {
-            // Get all tabs in the new window (they've been moved)
-            const windowTabs = await chrome.tabs.query({ windowId: newWindow.id });
+            const response = await chrome.runtime.sendMessage({
+              action: 'organizeToStacks',
+              categorizedTabs: { [category]: tabs },
+              targetWindowId: windowIdsByCategory[category]
+            });
             
-            if (windowTabs.length > 1) {
-              const parentTabId = windowTabs[0].id;
-              
-              // Stack all tabs under the first one
-              for (let i = 1; i < windowTabs.length; i++) {
-                const childTabId = windowTabs[i].id;
-                await new Promise((resolve) => {
-                  vivaldi.tabsPrivate.insertIntoTabStack(childTabId, parentTabId, () => {
-                    if (chrome.runtime.lastError) {
-                      console.warn(`Warning stacking tab ${childTabId}:`, chrome.runtime.lastError.message);
-                    }
-                    resolve();
-                  });
-                });
-              }
-              
-              // Set color and name on the parent tab
-              const stackColors = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'];
-              const stackColor = stackColors[windowsCreated % stackColors.length];
-              
-              // Set stack color
-              if (vivaldi.tabsPrivate.update) {
-                await new Promise((resolve) => {
-                  vivaldi.tabsPrivate.update(parentTabId, { stackColor: stackColor }, () => {
-                    if (chrome.runtime.lastError) {
-                      console.warn(`Warning setting stack color:`, chrome.runtime.lastError.message);
-                    }
-                    resolve();
-                  });
-                });
-                
-                // Set stack name
-                await new Promise((resolve) => {
-                  vivaldi.tabsPrivate.update(parentTabId, { stackName: category }, () => {
-                    if (chrome.runtime.lastError) {
-                      console.warn(`Warning setting stack name:`, chrome.runtime.lastError.message);
-                    }
-                    resolve();
-                  });
-                });
-              }
-              
-              console.log(`✓ Created tab stack for "${category}" with color ${stackColor} in window ${newWindow.id}`);
+            if (response && response.success) {
+              console.log(`✓ Created tab stack for "${category}" in window ${windowIdsByCategory[category]}`);
+            } else {
+              console.warn(`Could not create tab stack for "${category}":`, response?.error);
             }
           } catch (err) {
             console.warn(`Could not create tab stack in window for ${category}:`, err);
             // Continue anyway - window is still created
           }
         }
-        
-        windowsCreated++;
       }
-      
-      console.log(`✓ Created ${windowsCreated} separate windows`);
       
     } catch (error) {
       console.error('Error in window mode:', error);
