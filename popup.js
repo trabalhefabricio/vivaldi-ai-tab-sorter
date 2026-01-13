@@ -334,6 +334,9 @@ class TabSorter {
     } catch (error) {
       console.error('Error fetching models:', error);
       this.showStatus(`Error fetching models: ${error.message}`, 'error');
+      if (window.errorCollector) {
+        window.errorCollector.logAPIError('Gemini Models API', { apiKey: '***' }, null, error);
+      }
     } finally {
       document.getElementById('refreshModelsBtn').disabled = false;
     }
@@ -352,6 +355,9 @@ class TabSorter {
       });
     } catch (error) {
       console.error('Error saving settings:', error);
+      if (window.errorCollector) {
+        window.errorCollector.logStorageError('save', 'settings', error);
+      }
     }
   }
   
@@ -440,6 +446,14 @@ class TabSorter {
       
     } catch (error) {
       console.error('Error analyzing tabs:', error);
+      if (window.errorCollector) {
+        window.errorCollector.logError('Tab Analysis Error', {
+          error: error.message,
+          stack: error.stack,
+          categories: this.categories,
+          tabCount: this.allTabs?.length
+        });
+      }
       // Sanitize error message to avoid exposing sensitive information like API keys
       const sanitizedMessage = this.sanitizeErrorMessage(error.message);
       this.showStatus(`Error: ${sanitizedMessage}`, 'error');
@@ -630,6 +644,13 @@ class TabSorter {
       
     } catch (error) {
       console.error('Error calling Gemini API:', error);
+      if (window.errorCollector) {
+        window.errorCollector.logAPIError('Gemini generateContent API', 
+          { model: this.selectedModel, promptLength: prompt?.length }, 
+          null, 
+          error
+        );
+      }
       throw error;
     }
   }
@@ -771,6 +792,13 @@ Return ONLY the JSON array, nothing else.`;
       
     } catch (error) {
       console.error('Error parsing Gemini response:', error);
+      if (window.errorCollector) {
+        window.errorCollector.logError('Response Parsing Error', {
+          error: error.message,
+          stack: error.stack,
+          responseText: responseText?.substring(0, 200)
+        });
+      }
       // Re-throw with original message if it's already descriptive
       if (error.message.includes('AI response') || error.message.includes('JSON')) {
         throw error;
@@ -910,6 +938,13 @@ Return ONLY the JSON array, nothing else.`;
       
     } catch (error) {
       console.error('Error in workspace mode:', error);
+      if (window.errorCollector) {
+        window.errorCollector.logError('Workspace Mode Error', {
+          error: error.message,
+          stack: error.stack,
+          categoriesCount: Object.keys(this.analyzedTabs || {}).length
+        });
+      }
       
       // Provide a more helpful error message
       const errorMessage = error.message.includes('bridge') 

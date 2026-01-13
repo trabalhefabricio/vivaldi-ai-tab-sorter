@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnostic Tool - Vivaldi AI Tab Sorter</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+
+    .section h2 {
+      color: #333;
+      margin-bottom: 15px;
+      font-size: 20px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    button.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button.secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    button.secondary:hover {
+      background: #5a6268;
+    }
+
+    button.danger {
+      background: #dc3545;
+      color: white;
+    }
+
+    button.danger:hover {
+      background: #c82333;
+    }
+
+    button.success {
+      background: #28a745;
+      color: white;
+    }
+
+    button.success:hover {
+      background: #218838;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+    }
+
+    .error-list {
+      max-height: 400px;
+      overflow-y: auto;
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+    }
+
+    .error-item {
+      padding: 12px;
+      margin-bottom: 10px;
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      border-radius: 4px;
+    }
+
+    .error-item.error {
+      background: #f8d7da;
+      border-left-color: #dc3545;
+    }
+
+    .error-item.warning {
+      background: #fff3cd;
+      border-left-color: #ffc107;
+    }
+
+    .error-item.info {
+      background: #d1ecf1;
+      border-left-color: #17a2b8;
+    }
+
+    .error-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .error-type {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .error-time {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .error-details {
+      font-size: 13px;
+      color: #555;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    .status-indicator.ok {
+      background: #28a745;
+    }
+
+    .status-indicator.warning {
+      background: #ffc107;
+    }
+
+    .status-indicator.error {
+      background: #dc3545;
+    }
+
+    .check-item {
+      padding: 10px;
+      margin-bottom: 8px;
+      background: white;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+    }
+
+    .log-output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Diagnostic Tool</h1>
+    <p class="subtitle">Real-time error collection and system diagnostics for Vivaldi AI Tab Sorter</p>
+
+    <!-- Statistics Section -->
+    <div class="section">
+      <h2>📊 Error Statistics</h2>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value" id="errorCount">0</div>
+          <div class="stat-label">Total Errors</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="warningCount">0</div>
+          <div class="stat-label">Total Warnings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="sessionId">-</div>
+          <div class="stat-label">Session ID</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="lastUpdate">Never</div>
+          <div class="stat-label">Last Update</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Checks Section -->
+    <div class="section">
+      <h2>✓ System Checks</h2>
+      <div class="button-group">
+        <button class="primary" onclick="runSystemChecks()">
+          🔍 Run All Checks
+        </button>
+        <button class="secondary" onclick="exportDiagnostics()">
+          📥 Export Diagnostics
+        </button>
+      </div>
+      <div id="systemChecks"></div>
+    </div>
+
+    <!-- Error Log Section -->
+    <div class="section">
+      <h2>📋 Error Log</h2>
+      <div class="button-group">
+        <button class="primary" onclick="loadErrors()">
+          🔄 Refresh Errors
+        </button>
+        <button class="success" onclick="downloadErrorReport()">
+          💾 Download Report
+        </button>
+        <button class="danger" onclick="clearErrors()">
+          🗑️ Clear All Errors
+        </button>
+      </div>
+      <div id="errorLog" class="error-list">
+        <div class="empty-state">
+          <p>No errors collected yet. Click "Refresh Errors" to load.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Console Output Section -->
+    <div class="section">
+      <h2>💻 Console Output</h2>
+      <div class="log-output" id="consoleOutput">
+        Waiting for console output...
+      </div>
+    </div>
+  </div>
+
+  <script src="error-collector.js"></script>
+  <script>
+    let autoRefresh = false;
+
+    async function loadErrors() {
+      const data = await chrome.storage.local.get(['collectedErrors', 'collectedWarnings', 'lastErrorUpdate']);
+      
+      const errors = data.collectedErrors || [];
+      const warnings = data.collectedWarnings || [];
+      
+      // Update statistics
+      document.getElementById('errorCount').textContent = errors.length;
+      document.getElementById('warningCount').textContent = warnings.length;
+      
+      if (window.errorCollector && window.errorCollector.sessionId) {
+        document.getElementById('sessionId').textContent = window.errorCollector.sessionId.substring(0, 12) + '...';
+      }
+      
+      if (data.lastErrorUpdate) {
+        const lastUpdate = new Date(data.lastErrorUpdate);
+        document.getElementById('lastUpdate').textContent = lastUpdate.toLocaleTimeString();
+      }
+      
+      // Display errors
+      const errorLog = document.getElementById('errorLog');
+      
+      if (errors.length === 0 && warnings.length === 0) {
+        errorLog.innerHTML = '<div class="empty-state"><p>✅ No errors or warnings found!</p></div>';
+        return;
+      }
+      
+      const allItems = [
+        ...errors.map(e => ({ ...e, level: 'error' })),
+        ...warnings.map(w => ({ ...w, level: 'warning' }))
+      ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      errorLog.innerHTML = allItems.map(item => `
+        <div class="error-item ${item.level}">
+          <div class="error-header">
+            <span class="error-type">${item.type}</span>
+            <span class="error-time">${new Date(item.timestamp).toLocaleString()}</span>
+          </div>
+          <div class="error-details">${formatDetails(item.details)}</div>
+        </div>
+      `).join('');
+    }
+
+    function formatDetails(details) {
+      if (typeof details === 'string') return details;
+      if (typeof details === 'object') {
+        return JSON.stringify(details, null, 2);
+      }
+      return String(details);
+    }
+
+    async function runSystemChecks() {
+      const checksDiv = document.getElementById('systemChecks');
+      checksDiv.innerHTML = '<p>Running checks...</p>';
+      
+      const checks = [];
+      
+      // Check 1: Chrome Storage
+      try {
+        await chrome.storage.local.get(['apiKey']);
+        checks.push({ name: 'Chrome Storage API', status: 'ok', message: 'Working' });
+      } catch (e) {
+        checks.push({ name: 'Chrome Storage API', status: 'error', message: e.message });
+      }
+      
+      // Check 2: Tabs API
+      try {
+        await chrome.tabs.query({});
+        checks.push({ name: 'Chrome Tabs API', status: 'ok', message: 'Working' });
+      } catch (e) {
+        checks.push({ name: 'Chrome Tabs API', status: 'error', message: e.message });
+      }
+      
+      // Check 3: Windows API
+      try {
+        await chrome.windows.getCurrent();
+        checks.push({ name: 'Chrome Windows API', status: 'ok', message: 'Working' });
+      } catch (e) {
+        checks.push({ name: 'Chrome Windows API', status: 'error', message: e.message });
+      }
+      
+      // Check 4: Tab Groups API
+      try {
+        if (chrome.tabGroups) {
+          checks.push({ name: 'Chrome Tab Groups API', status: 'ok', message: 'Available' });
+        } else {
+          checks.push({ name: 'Chrome Tab Groups API', status: 'warning', message: 'Not available' });
+        }
+      } catch (e) {
+        checks.push({ name: 'Chrome Tab Groups API', status: 'error', message: e.message });
+      }
+      
+      // Check 5: Vivaldi Bridge
+      try {
+        const result = await chrome.runtime.sendMessage({ action: 'checkVivaldiBridge' });
+        if (result && result.available) {
+          checks.push({ name: 'Vivaldi Bridge', status: 'ok', message: 'Installed and working' });
+        } else {
+          checks.push({ name: 'Vivaldi Bridge', status: 'warning', message: 'Not installed (required for Workspace mode)' });
+        }
+      } catch (e) {
+        checks.push({ name: 'Vivaldi Bridge', status: 'warning', message: 'Not installed' });
+      }
+      
+      // Check 6: Error Collector
+      if (window.errorCollector) {
+        checks.push({ name: 'Error Collector', status: 'ok', message: 'Active' });
+      } else {
+        checks.push({ name: 'Error Collector', status: 'error', message: 'Not initialized' });
+      }
+      
+      // Display results
+      checksDiv.innerHTML = checks.map(check => `
+        <div class="check-item">
+          <span class="status-indicator ${check.status}"></span>
+          <strong>${check.name}:</strong> ${check.message}
+        </div>
+      `).join('');
+    }
+
+    function downloadErrorReport() {
+      if (window.errorCollector) {
+        window.errorCollector.downloadReport();
+      } else {
+        alert('Error collector not available');
+      }
+    }
+
+    async function clearErrors() {
+      if (confirm('Are you sure you want to clear all errors? This cannot be undone.')) {
+        if (window.errorCollector) {
+          window.errorCollector.clear();
+        }
+        await chrome.storage.local.remove(['collectedErrors', 'collectedWarnings']);
+        loadErrors();
+      }
+    }
+
+    async function exportDiagnostics() {
+      const diagnostics = {
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        errors: window.errorCollector?.getAllErrors() || null,
+        systemChecks: await getSystemChecksData()
+      };
+      
+      const blob = new Blob([JSON.stringify(diagnostics, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vivaldi-diagnostics-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function getSystemChecksData() {
+      const checks = {};
+      
+      try {
+        checks.storage = 'ok';
+        await chrome.storage.local.get(['apiKey']);
+      } catch (e) {
+        checks.storage = 'error: ' + e.message;
+      }
+      
+      try {
+        checks.tabs = 'ok';
+        await chrome.tabs.query({});
+      } catch (e) {
+        checks.tabs = 'error: ' + e.message;
+      }
+      
+      return checks;
+    }
+
+    // Capture console output
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    const consoleOutput = document.getElementById('consoleOutput');
+    let consoleBuffer = [];
+
+    function addToConsole(type, args) {
+      const message = args.map(arg => {
+        if (typeof arg === 'object') {
+          try {
+            return JSON.stringify(arg, null, 2);
+          } catch (e) {
+            return String(arg);
+          }
+        }
+        return String(arg);
+      }).join(' ');
+      
+      const timestamp = new Date().toLocaleTimeString();
+      consoleBuffer.push(`[${timestamp}] [${type.toUpperCase()}] ${message}`);
+      
+      if (consoleBuffer.length > 100) {
+        consoleBuffer.shift();
+      }
+      
+      consoleOutput.textContent = consoleBuffer.join('\n');
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+
+    console.log = function(...args) {
+      addToConsole('log', args);
+      originalLog.apply(console, args);
+    };
+
+    console.error = function(...args) {
+      addToConsole('error', args);
+      originalError.apply(console, args);
+    };
+
+    console.warn = function(...args) {
+      addToConsole('warn', args);
+      originalWarn.apply(console, args);
+    };
+
+    // Auto-load on page load
+    window.addEventListener('load', () => {
+      loadErrors();
+      runSystemChecks();
+      
+      // Auto-refresh every 10 seconds for better performance
+      setInterval(loadErrors, 10000);
+    });
+  </script>
+</body>
+</html>
