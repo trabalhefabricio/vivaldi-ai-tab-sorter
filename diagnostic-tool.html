@@ -332,7 +332,7 @@
       document.getElementById('errorCount').textContent = errors.length;
       document.getElementById('warningCount').textContent = warnings.length;
       
-      if (window.errorCollector) {
+      if (window.errorCollector && window.errorCollector.sessionId) {
         document.getElementById('sessionId').textContent = window.errorCollector.sessionId.substring(0, 12) + '...';
       }
       
@@ -549,7 +549,7 @@
       loadErrors();
       runSystemChecks();
       
-      // Auto-refresh every 10 seconds (increased from 5 for better performance)
+      // Auto-refresh every 10 seconds for better performance
       setInterval(loadErrors, 10000);
     });
   </script>

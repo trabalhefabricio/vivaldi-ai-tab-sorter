@@ -48,7 +48,7 @@ class ErrorCollector {
       });
     });
 
-    // Wrap console methods to capture logs
+    // Wrap console methods to capture errors, warnings, and logs
     this.wrapConsole();
   }
 
