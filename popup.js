@@ -669,15 +669,32 @@ Return ONLY the JSON array, nothing else.`;
       let categorizations = null;
       
       // Strategy 1: Try to extract JSON from markdown code blocks
-      const markdownMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*\])\s*```/);
+      // Look for ```json or just ``` followed by JSON array
+      const markdownMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
       if (markdownMatch) {
         console.log('Found JSON in markdown code block');
         jsonText = markdownMatch[1];
       }
       
       // Strategy 2: Try to find a JSON array using regex (greedy to capture full array)
+      // But first, check if response contains markdown - if so, try to strip it
       if (!jsonText) {
-        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        let cleanedResponse = responseText;
+        
+        // If response contains markdown indicators, try to extract just the content
+        if (responseText.includes('```')) {
+          // Try to extract content between backticks even if regex didn't match
+          const backtickParts = responseText.split('```');
+          if (backtickParts.length >= 3) {
+            // Take the middle part (between first and second ```)
+            cleanedResponse = backtickParts[1]
+              .replace(/^json\s*/i, '') // Remove 'json' language identifier
+              .trim();
+            console.log('Extracted content from markdown code block');
+          }
+        }
+        
+        const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           console.log('Found JSON array using regex');
           jsonText = jsonMatch[0];
