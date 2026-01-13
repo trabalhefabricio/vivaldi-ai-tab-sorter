@@ -39,3 +39,6 @@ logs/
 *.backup
 *.bak
 browser.html.backup
+
+# Test files
+test_parser.js

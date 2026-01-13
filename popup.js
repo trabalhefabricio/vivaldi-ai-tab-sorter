@@ -663,13 +663,85 @@ Return ONLY the JSON array, nothing else.`;
   
   parseGeminiResponse(responseText, originalTabs) {
     try {
-      // Extract JSON from response (in case there's extra text)
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        throw new Error('Could not find JSON array in response');
+      console.log('Parsing Gemini response, length:', responseText.length);
+      
+      let jsonText = null;
+      let categorizations = null;
+      
+      // Strategy 1: Try to extract JSON from markdown code blocks
+      // Look for ```json or just ``` followed by JSON array
+      const markdownMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (markdownMatch) {
+        console.log('Found JSON in markdown code block');
+        jsonText = markdownMatch[1];
       }
       
-      const categorizations = JSON.parse(jsonMatch[0]);
+      // Strategy 2: Try to find a JSON array using regex (greedy to capture full array)
+      // But first, check if response contains markdown - if so, try to strip it
+      if (!jsonText) {
+        let cleanedResponse = responseText;
+        
+        // If response contains markdown indicators, try to extract just the content
+        if (responseText.includes('```')) {
+          // Try to extract content between backticks even if regex didn't match
+          const backtickParts = responseText.split('```');
+          if (backtickParts.length >= 3) {
+            // Take the middle part (between first and second ```)
+            cleanedResponse = backtickParts[1]
+              .replace(/^json\s*/i, '') // Remove 'json' language identifier
+              .trim();
+            console.log('Extracted content from markdown code block');
+          }
+        }
+        
+        const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          console.log('Found JSON array using regex');
+          jsonText = jsonMatch[0];
+        }
+      }
+      
+      // Strategy 3: Try to parse the entire response as JSON
+      if (!jsonText) {
+        console.log('Attempting to parse entire response as JSON');
+        jsonText = responseText.trim();
+      }
+      
+      // Throw descriptive error if no JSON found
+      if (!jsonText) {
+        console.error('Could not extract JSON from response. Response:', responseText.substring(0, 500));
+        throw new Error('Could not find JSON array in AI response. The response may be empty or malformed.');
+      }
+      
+      // Try to parse the JSON
+      try {
+        categorizations = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Failed to parse JSON:', jsonText.substring(0, 500));
+        throw new Error(`Invalid JSON format in AI response: ${parseError.message}. Try analyzing fewer tabs or check your API key.`);
+      }
+      
+      // Validate that we got an array
+      if (!Array.isArray(categorizations)) {
+        console.error('Response is not an array:', typeof categorizations);
+        throw new Error('AI response is not a JSON array. Expected format: [{"id": ..., "category": "..."}]');
+      }
+      
+      // Validate array has items
+      if (categorizations.length === 0) {
+        console.warn('AI returned empty array');
+        throw new Error('AI returned an empty categorization list. Try rephrasing your categories or logic rules.');
+      }
+      
+      // Validate items have required structure
+      const validItems = categorizations.filter(item => item && typeof item.id !== 'undefined' && item.category);
+      if (validItems.length === 0) {
+        console.error('No valid categorization items found. Sample:', categorizations[0]);
+        throw new Error('AI response items are missing "id" or "category" fields. Expected format: [{"id": ..., "category": "..."}]');
+      }
+      
+      console.log(`Successfully parsed ${validItems.length} categorizations out of ${categorizations.length} items`);
       
       // Create a map of categorized tabs
       const categorizedTabs = {};
@@ -682,7 +754,7 @@ Return ONLY the JSON array, nothing else.`;
       
       // Map categorizations back to original tabs
       const categorizationMap = new Map();
-      categorizations.forEach(item => {
+      validItems.forEach(item => {
         categorizationMap.set(item.id, item.category);
       });
       
@@ -699,7 +771,12 @@ Return ONLY the JSON array, nothing else.`;
       
     } catch (error) {
       console.error('Error parsing Gemini response:', error);
-      throw new Error('Failed to parse AI response. Please try again.');
+      // Re-throw with original message if it's already descriptive
+      if (error.message.includes('AI response') || error.message.includes('JSON')) {
+        throw error;
+      }
+      // Otherwise, wrap with generic message
+      throw new Error(`Failed to parse AI response: ${error.message}. Please try again.`);
     }
   }
   
@@ -846,6 +923,7 @@ Return ONLY the JSON array, nothing else.`;
   async applyStackMode() {
     try {
       console.log(`Stack mode: scope=${this.stackScope}`);
+      console.log('Analyzed tabs:', Object.keys(this.analyzedTabs).map(cat => `${cat}: ${this.analyzedTabs[cat].length} tabs`).join(', '));
       
       let targetWindowId;
       let allTabsToOrganize = [];
@@ -858,7 +936,8 @@ Return ONLY the JSON array, nothing else.`;
         // Create or use a window for consolidation
         targetWindowId = allWindows[0].id;
         
-        // Collect all tabs that need to be organized
+        // First, move all tabs to the target window
+        const movedTabIds = new Set();
         for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
           if (tabs.length === 0) continue;
           
@@ -870,12 +949,30 @@ Return ONLY the JSON array, nothing else.`;
                   windowId: targetWindowId,
                   index: -1
                 });
+                movedTabIds.add(tab.id);
               } catch (err) {
                 console.error(`Error moving tab ${tab.id} to target window:`, err);
               }
             }
           }
-          allTabsToOrganize.push({ category, tabs });
+        }
+        
+        // Re-query tabs in the target window to get updated tab objects
+        const updatedTabs = await chrome.tabs.query({ windowId: targetWindowId });
+        const tabMap = new Map(updatedTabs.map(t => [t.id, t]));
+        
+        // Now organize tabs with updated tab objects
+        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
+          if (tabs.length === 0) continue;
+          
+          // Get updated tab objects for this category
+          const updatedCategoryTabs = tabs
+            .map(t => tabMap.get(t.id))
+            .filter(t => t !== undefined);
+          
+          if (updatedCategoryTabs.length > 0) {
+            allTabsToOrganize.push({ category, tabs: updatedCategoryTabs });
+          }
         }
       } else {
         // Current window only
@@ -894,18 +991,50 @@ Return ONLY the JSON array, nothing else.`;
       
       // Now create colored groups with names for each category
       let colorIndex = 0;
+      let groupsCreated = 0;
+      let groupsFailed = 0;
+      
+      console.log(`Attempting to create ${allTabsToOrganize.length} tab groups...`);
+      
+      if (allTabsToOrganize.length === 0) {
+        console.warn('No tabs to organize! allTabsToOrganize is empty.');
+        throw new Error('No tabs to organize. This could mean all tabs were filtered out or the analysis data was lost.');
+      }
+      
       for (const { category, tabs } of allTabsToOrganize) {
         if (tabs.length === 0) continue;
         
         const tabIds = tabs.map(t => t.id);
         const color = this.availableColors[colorIndex % this.availableColors.length];
         
-        console.log(`Creating group "${category}" with color ${color} and ${tabIds.length} tabs`);
+        console.log(`Creating group "${category}" with color ${color} and ${tabIds.length} tabs (IDs: ${tabIds.join(', ')})`);
         
+        // Verify tabs still exist before grouping
         try {
+          const validTabIds = [];
+          for (const tabId of tabIds) {
+            try {
+              const tab = await chrome.tabs.get(tabId);
+              if (tab) {
+                validTabIds.push(tabId);
+              }
+            } catch (err) {
+              console.warn(`Tab ${tabId} no longer exists, skipping`);
+            }
+          }
+          
+          if (validTabIds.length === 0) {
+            console.warn(`No valid tabs found for category "${category}", skipping`);
+            continue;
+          }
+          
+          console.log(`  -> Verified ${validTabIds.length}/${tabIds.length} tabs still exist`);
+          
           const groupId = await chrome.tabs.group({
-            tabIds: tabIds
+            tabIds: validTabIds
           });
+          
+          console.log(`  -> Group created with ID: ${groupId}`);
           
           // Update group with color and category name
           await chrome.tabGroups.update(groupId, {
@@ -914,9 +1043,15 @@ Return ONLY the JSON array, nothing else.`;
             collapsed: false
           });
           
+          console.log(`  -> Group updated with title "${category}" and color ${color}`);
+          
           colorIndex++;
+          groupsCreated++;
         } catch (err) {
           console.error(`Error creating group for ${category}:`, err);
+          console.error(`  -> Tab IDs that failed:`, tabIds);
+          console.error(`  -> Error details:`, err.message, err.stack);
+          groupsFailed++;
         }
       }
       
@@ -925,7 +1060,12 @@ Return ONLY the JSON array, nothing else.`;
         await chrome.windows.update(targetWindowId, { focused: true });
       }
       
-      console.log(`✓ Created ${allTabsToOrganize.length} colored tab stacks`);
+      console.log(`✓ Created ${groupsCreated} colored tab stacks (${groupsFailed} failed)`);
+      
+      if (groupsCreated === 0 && allTabsToOrganize.length > 0) {
+        throw new Error(`Failed to create any tab groups. Attempted ${allTabsToOrganize.length} groups, all failed. Check the browser console for details.`);
+      }
+      
       
     } catch (error) {
       console.error('Error in stack mode:', error);
