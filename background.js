@@ -79,11 +79,13 @@ async function organizeViaExtensionsAPI(categorizedTabs) {
       }
     }
     
-    // Close the duplicate tab that was created (if the original tab still exists)
+    // Close the duplicate tab that was created when we opened the window
+    // When using chrome.windows.create with a url parameter, Chrome creates a NEW tab
+    // We then move the original tab, so we need to close the duplicate
     if (newWindow.tabs && newWindow.tabs.length > 0) {
       const newTabId = newWindow.tabs[0].id;
-      // Close the duplicate tab that was created with url parameter
-      // Only if it's different from the original tab we're trying to move
+      // Safety check: only close if it's different from the original tab
+      // (it should always be different, but we check to be safe)
       if (firstTab.id !== newTabId) {
         try {
           await chrome.tabs.remove(newTabId);

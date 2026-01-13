@@ -113,13 +113,20 @@ class TabSorter {
       if (data.selectedModel) {
         const modelSelect = document.getElementById('modelSelect');
         // Validate that the saved model exists in the dropdown
-        const modelExists = Array.from(modelSelect.options).some(opt => opt.value === data.selectedModel);
+        let modelExists = false;
+        for (const option of modelSelect.options) {
+          if (option.value === data.selectedModel) {
+            modelExists = true;
+            break;
+          }
+        }
+        
         if (modelExists) {
           modelSelect.value = data.selectedModel;
           this.selectedModel = data.selectedModel;
         } else {
           // Saved model doesn't exist, use current default
-          console.log(`Saved model "${data.selectedModel}" not found in dropdown, using default`);
+          console.log('Saved model not found in dropdown, using default');
           this.selectedModel = modelSelect.value;
         }
       }
