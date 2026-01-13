@@ -1062,7 +1062,7 @@ Return ONLY the JSON array, nothing else.`;
           }
           
           // Set color and name on the parent tab (Vivaldi tab stack properties)
-          // Colors available in Vivaldi: 'blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan', 'grey'
+          // Colors available in Vivaldi: 'blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'
           const stackColors = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'];
           const stackColor = stackColors[stacksCreated % stackColors.length];
           

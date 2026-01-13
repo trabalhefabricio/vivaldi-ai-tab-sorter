@@ -100,8 +100,6 @@ Key methods used:
   - Updates tab properties including stack color and name
   - Properties: `{ stackColor: 'blue', stackName: 'Category Name' }`
   - Colors: 'blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'
-  - Creates hierarchical relationship
-  - First tab is always the parent
 
 - `vivaldi.tabsPrivate.removeFromTabStack(tabId, callback)`
   - Removes a tab from its stack

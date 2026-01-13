@@ -136,8 +136,6 @@ The bridge script is required to enable the Workspace organization feature. With
 - Optionally creates colored tab stacks within each window
 - No bridge script needed
 - Useful for working on different projects simultaneously
-- No bridge script needed
-- Useful for working on different projects simultaneously
 
 ## 💡 Tips & Best Practices
 
