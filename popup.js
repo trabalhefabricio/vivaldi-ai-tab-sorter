@@ -923,6 +923,7 @@ Return ONLY the JSON array, nothing else.`;
   async applyStackMode() {
     try {
       console.log(`Stack mode: scope=${this.stackScope}`);
+      console.log('Analyzed tabs:', Object.keys(this.analyzedTabs).map(cat => `${cat}: ${this.analyzedTabs[cat].length} tabs`).join(', '));
       
       let targetWindowId;
       let allTabsToOrganize = [];
@@ -990,18 +991,50 @@ Return ONLY the JSON array, nothing else.`;
       
       // Now create colored groups with names for each category
       let colorIndex = 0;
+      let groupsCreated = 0;
+      let groupsFailed = 0;
+      
+      console.log(`Attempting to create ${allTabsToOrganize.length} tab groups...`);
+      
+      if (allTabsToOrganize.length === 0) {
+        console.warn('No tabs to organize! allTabsToOrganize is empty.');
+        throw new Error('No tabs to organize. This could mean all tabs were filtered out or the analysis data was lost.');
+      }
+      
       for (const { category, tabs } of allTabsToOrganize) {
         if (tabs.length === 0) continue;
         
         const tabIds = tabs.map(t => t.id);
         const color = this.availableColors[colorIndex % this.availableColors.length];
         
-        console.log(`Creating group "${category}" with color ${color} and ${tabIds.length} tabs`);
+        console.log(`Creating group "${category}" with color ${color} and ${tabIds.length} tabs (IDs: ${tabIds.join(', ')})`);
         
+        // Verify tabs still exist before grouping
         try {
+          const validTabIds = [];
+          for (const tabId of tabIds) {
+            try {
+              const tab = await chrome.tabs.get(tabId);
+              if (tab) {
+                validTabIds.push(tabId);
+              }
+            } catch (err) {
+              console.warn(`Tab ${tabId} no longer exists, skipping`);
+            }
+          }
+          
+          if (validTabIds.length === 0) {
+            console.warn(`No valid tabs found for category "${category}", skipping`);
+            continue;
+          }
+          
+          console.log(`  -> Verified ${validTabIds.length}/${tabIds.length} tabs still exist`);
+          
           const groupId = await chrome.tabs.group({
-            tabIds: tabIds
+            tabIds: validTabIds
           });
+          
+          console.log(`  -> Group created with ID: ${groupId}`);
           
           // Update group with color and category name
           await chrome.tabGroups.update(groupId, {
@@ -1010,9 +1043,15 @@ Return ONLY the JSON array, nothing else.`;
             collapsed: false
           });
           
+          console.log(`  -> Group updated with title "${category}" and color ${color}`);
+          
           colorIndex++;
+          groupsCreated++;
         } catch (err) {
           console.error(`Error creating group for ${category}:`, err);
+          console.error(`  -> Tab IDs that failed:`, tabIds);
+          console.error(`  -> Error details:`, err.message, err.stack);
+          groupsFailed++;
         }
       }
       
@@ -1021,7 +1060,12 @@ Return ONLY the JSON array, nothing else.`;
         await chrome.windows.update(targetWindowId, { focused: true });
       }
       
-      console.log(`✓ Created ${allTabsToOrganize.length} colored tab stacks`);
+      console.log(`✓ Created ${groupsCreated} colored tab stacks (${groupsFailed} failed)`);
+      
+      if (groupsCreated === 0 && allTabsToOrganize.length > 0) {
+        throw new Error(`Failed to create any tab groups. Attempted ${allTabsToOrganize.length} groups, all failed. Check the browser console for details.`);
+      }
+      
       
     } catch (error) {
       console.error('Error in stack mode:', error);
