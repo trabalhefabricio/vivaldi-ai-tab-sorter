@@ -60,7 +60,7 @@ This document summarizes the complete implementation of the Vivaldi AI Tab Sorte
 
 1. **manifest.json** (38 lines)
    - Manifest V3 compliant
-   - Proper permissions: tabs, storage, tabGroups
+   - Proper permissions: tabs, storage
    - Content script for Vivaldi internal pages
    - Service worker background script
 
@@ -167,7 +167,7 @@ This document summarizes the complete implementation of the Vivaldi AI Tab Sorte
 
 ### 3. Three Organization Modes
 - **Windows Mode**: Native chrome.windows API
-- **Tab Stacks Mode**: Native chrome.tabGroups API (Manifest V3)
+- **Tab Stacks Mode**: Native Vivaldi tab stacking API (vivaldi.tabsPrivate)
 - **Workspaces Mode**: Vivaldi-specific via bridge
 
 ### 4. User Experience Excellence

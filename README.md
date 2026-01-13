@@ -14,11 +14,13 @@
 
 ---
 
+> **⚠️ Important**: This extension is specifically designed for **Vivaldi Browser** and uses Vivaldi's proprietary tab stacking and workspace APIs. It will **NOT work** in Chrome or other browsers.
+
 ## ✨ Features
 
 - 🤖 **AI-Powered**: Uses Gemini 2.0 Flash to analyze and categorize tabs
 - 🏆 **Vivaldi Workspaces**: Automatically create and organize tabs into Workspaces
-- 📚 **Tab Stacks**: Group tabs visually in your current window
+- 📚 **Tab Stacks**: Group tabs visually using Vivaldi's native tab stacking
 - 🪟 **Separate Windows**: Create dedicated windows for each category
 - 🎯 **Custom Rules**: Guide AI with your own logic rules
 - 🔄 **Duplicate Removal**: Optional deduplication before sorting
@@ -28,12 +30,13 @@
 ## 🚀 Quick Start
 
 1. **Install Extension**: Load unpacked in `vivaldi://extensions`
-2. **Get API Key**: [Get your free Gemini API key](https://aistudio.google.com/app/apikey)
-3. **Configure**: Enter API key and categories
-4. **Analyze**: Click "Analyze & Preview"
-5. **Apply**: Click "Apply Sorting" to organize!
+2. **Install Bridge Script**: Required for Tab Stacks, Windows, and Workspaces modes (see [DOCUMENTATION.md](DOCUMENTATION.md))
+3. **Get API Key**: [Get your free Gemini API key](https://aistudio.google.com/app/apikey)
+4. **Configure**: Enter API key and categories
+5. **Analyze**: Click "Analyze & Preview"
+6. **Apply**: Click "Apply Sorting" to organize!
 
-**For Workspace Mode**: Install the bridge script (see [DOCUMENTATION.md](DOCUMENTATION.md))
+**Important**: The bridge script installation is required because Vivaldi-specific APIs (`vivaldi.tabsPrivate`, `vivaldi.workspaces`) are only accessible from Vivaldi's internal page context, not from extension popups.
 
 ## 📖 Full Documentation
 

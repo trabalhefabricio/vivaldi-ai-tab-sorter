@@ -175,6 +175,26 @@ This guide helps you solve common issues with the Vivaldi AI Tab Sorter extensio
 
 ## Tab Sorting Issues
 
+### "Vivaldi bridge script not responding"
+
+**Problem**: Tab Stacks or Windows mode fails with bridge script error
+
+**Root Cause**: The `vivaldi.tabsPrivate` API is only available in Vivaldi's internal page context (window.html), NOT in extension popups. The extension must use a bridge script to access Vivaldi-specific APIs.
+
+**Solutions**:
+1. **Install the bridge script** - Follow installation instructions in DOCUMENTATION.md
+   - Bridge script must be installed in Vivaldi's window.html file
+   - This is required for Tab Stacks, Windows (with stacking), and Workspaces modes
+2. **Restart Vivaldi completely** after installing the bridge
+3. **Check bridge installation**:
+   - Open Vivaldi DevTools (F12)
+   - Look for "Vivaldi AI Tab Sorter Bridge Script loaded" in console
+4. **Verify file paths** match your Vivaldi version
+5. Try Workspaces mode first to test if bridge is working
+
+**Why is this needed?**
+Extension popups cannot directly access the `vivaldi` object. Only scripts running in Vivaldi's internal pages (via the bridge) can access Vivaldi-specific APIs like `vivaldi.tabsPrivate` and `vivaldi.workspaces`.
+
 ### Tabs Categorized Incorrectly
 
 **Problem**: AI assigns tabs to wrong categories

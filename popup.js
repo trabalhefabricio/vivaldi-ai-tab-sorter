@@ -13,9 +13,6 @@ class TabSorter {
     this.selectedModel = 'gemini-1.5-flash'; // Default to stable model
     this.availableModels = []; // Will be populated from API
     
-    // Colors available for tab groups in Chrome/Vivaldi
-    this.availableColors = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
-    
     // Rate limiting for free tier (15 RPM, 1500 RPD)
     this.lastRequestTime = 0;
     this.minRequestInterval = 4000; // 4 seconds between requests (15 RPM = 1 request per 4s)
@@ -926,7 +923,6 @@ Return ONLY the JSON array, nothing else.`;
       console.log('Analyzed tabs:', Object.keys(this.analyzedTabs).map(cat => `${cat}: ${this.analyzedTabs[cat].length} tabs`).join(', '));
       
       let targetWindowId;
-      let allTabsToOrganize = [];
       
       if (this.stackScope === 'all') {
         // Consolidate all windows: get all tabs from all windows
@@ -937,7 +933,6 @@ Return ONLY the JSON array, nothing else.`;
         targetWindowId = allWindows[0].id;
         
         // First, move all tabs to the target window
-        const movedTabIds = new Set();
         for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
           if (tabs.length === 0) continue;
           
@@ -949,7 +944,6 @@ Return ONLY the JSON array, nothing else.`;
                   windowId: targetWindowId,
                   index: -1
                 });
-                movedTabIds.add(tab.id);
               } catch (err) {
                 console.error(`Error moving tab ${tab.id} to target window:`, err);
               }
@@ -961,111 +955,42 @@ Return ONLY the JSON array, nothing else.`;
         const updatedTabs = await chrome.tabs.query({ windowId: targetWindowId });
         const tabMap = new Map(updatedTabs.map(t => [t.id, t]));
         
-        // Now organize tabs with updated tab objects
+        // Update analyzedTabs with new tab objects
+        const updatedAnalyzedTabs = {};
         for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
-          if (tabs.length === 0) continue;
-          
-          // Get updated tab objects for this category
-          const updatedCategoryTabs = tabs
+          updatedAnalyzedTabs[category] = tabs
             .map(t => tabMap.get(t.id))
             .filter(t => t !== undefined);
-          
-          if (updatedCategoryTabs.length > 0) {
-            allTabsToOrganize.push({ category, tabs: updatedCategoryTabs });
-          }
         }
+        this.analyzedTabs = updatedAnalyzedTabs;
       } else {
         // Current window only
         const currentWindow = await chrome.windows.getCurrent();
         targetWindowId = currentWindow.id;
-        
-        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
-          if (tabs.length === 0) continue;
-          // Only include tabs from current window
-          const tabsInCurrentWindow = tabs.filter(t => t.windowId === currentWindow.id);
-          if (tabsInCurrentWindow.length > 0) {
-            allTabsToOrganize.push({ category, tabs: tabsInCurrentWindow });
-          }
-        }
       }
       
-      // Now create colored groups with names for each category
-      let colorIndex = 0;
-      let groupsCreated = 0;
-      let groupsFailed = 0;
+      // Send message to background script to organize via bridge
+      console.log('Requesting tab stack organization via bridge...');
       
-      console.log(`Attempting to create ${allTabsToOrganize.length} tab groups...`);
+      const response = await chrome.runtime.sendMessage({
+        action: 'organizeToStacks',
+        categorizedTabs: this.analyzedTabs,
+        targetWindowId: targetWindowId
+      });
       
-      if (allTabsToOrganize.length === 0) {
-        console.warn('No tabs to organize! allTabsToOrganize is empty.');
-        throw new Error('No tabs to organize. This could mean all tabs were filtered out or the analysis data was lost.');
+      if (!response || !response.success) {
+        const errorMsg = response?.error || 'Failed to organize tabs into stacks';
+        console.error('Tab stack organization failed:', errorMsg);
+        throw new Error(errorMsg);
       }
       
-      for (const { category, tabs } of allTabsToOrganize) {
-        if (tabs.length === 0) continue;
-        
-        const tabIds = tabs.map(t => t.id);
-        const color = this.availableColors[colorIndex % this.availableColors.length];
-        
-        console.log(`Creating group "${category}" with color ${color} and ${tabIds.length} tabs (IDs: ${tabIds.join(', ')})`);
-        
-        // Verify tabs still exist before grouping
-        try {
-          const validTabIds = [];
-          for (const tabId of tabIds) {
-            try {
-              const tab = await chrome.tabs.get(tabId);
-              if (tab) {
-                validTabIds.push(tabId);
-              }
-            } catch (err) {
-              console.warn(`Tab ${tabId} no longer exists, skipping`);
-            }
-          }
-          
-          if (validTabIds.length === 0) {
-            console.warn(`No valid tabs found for category "${category}", skipping`);
-            continue;
-          }
-          
-          console.log(`  -> Verified ${validTabIds.length}/${tabIds.length} tabs still exist`);
-          
-          const groupId = await chrome.tabs.group({
-            tabIds: validTabIds
-          });
-          
-          console.log(`  -> Group created with ID: ${groupId}`);
-          
-          // Update group with color and category name
-          await chrome.tabGroups.update(groupId, {
-            title: category,
-            color: color,
-            collapsed: false
-          });
-          
-          console.log(`  -> Group updated with title "${category}" and color ${color}`);
-          
-          colorIndex++;
-          groupsCreated++;
-        } catch (err) {
-          console.error(`Error creating group for ${category}:`, err);
-          console.error(`  -> Tab IDs that failed:`, tabIds);
-          console.error(`  -> Error details:`, err.message, err.stack);
-          groupsFailed++;
-        }
-      }
+      console.log('Tab stack organization successful via', response.method || 'bridge');
+      console.log(`✓ Created ${response.stacksCreated || 0} tab stacks`);
       
       // Focus the target window
       if (targetWindowId) {
         await chrome.windows.update(targetWindowId, { focused: true });
       }
-      
-      console.log(`✓ Created ${groupsCreated} colored tab stacks (${groupsFailed} failed)`);
-      
-      if (groupsCreated === 0 && allTabsToOrganize.length > 0) {
-        throw new Error(`Failed to create any tab groups. Attempted ${allTabsToOrganize.length} groups, all failed. Check the browser console for details.`);
-      }
-      
       
     } catch (error) {
       console.error('Error in stack mode:', error);
@@ -1076,9 +1001,8 @@ Return ONLY the JSON array, nothing else.`;
   async applyWindowMode() {
     try {
       // Create separate windows for each category
-      // Each window will have tabs grouped with the category name as the group title
-      let colorIndex = 0;
       let windowsCreated = 0;
+      const windowIdsByCategory = {};
       
       for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
         if (tabs.length === 0) continue;
@@ -1101,37 +1025,42 @@ Return ONLY the JSON array, nothing else.`;
           });
         }
         
-        // Get all tabs in the new window (they've been moved)
-        const windowTabs = await chrome.tabs.query({ windowId: newWindow.id });
-        const tabIds = windowTabs.map(t => t.id);
-        
-        // Group all tabs together with the category name and color
-        // Only group if we have tabs and colors available
-        if (tabIds.length > 0 && this.availableColors && this.availableColors.length > 0) {
-          try {
-            const color = this.availableColors[colorIndex % this.availableColors.length];
-            const groupId = await chrome.tabs.group({
-              tabIds: tabIds
-            });
-            
-            // Update group with color and category name as title
-            await chrome.tabGroups.update(groupId, {
-              title: category,
-              color: color,
-              collapsed: false
-            });
-            
-            console.log(`✓ Created group "${category}" with color ${color} in window ${newWindow.id}`);
-            colorIndex++;
-          } catch (err) {
-            console.error(`Error creating group for ${category}:`, err);
-          }
-        }
-        
+        windowIdsByCategory[category] = newWindow.id;
         windowsCreated++;
       }
       
-      console.log(`✓ Created ${windowsCreated} windows with grouped tabs`);
+      console.log(`✓ Created ${windowsCreated} separate windows`);
+      
+      // Now create tab stacks in each window using the bridge
+      // Build categorized tabs by window
+      const tabsByWindow = {};
+      for (const [category, windowId] of Object.entries(windowIdsByCategory)) {
+        // Get fresh tab data for this window
+        const windowTabs = await chrome.tabs.query({ windowId: windowId });
+        tabsByWindow[category] = windowTabs;
+      }
+      
+      // Request stacking for each window via bridge
+      for (const [category, tabs] of Object.entries(tabsByWindow)) {
+        if (tabs.length > 1) {
+          try {
+            const response = await chrome.runtime.sendMessage({
+              action: 'organizeToStacks',
+              categorizedTabs: { [category]: tabs },
+              targetWindowId: windowIdsByCategory[category]
+            });
+            
+            if (response && response.success) {
+              console.log(`✓ Created tab stack for "${category}" in window ${windowIdsByCategory[category]}`);
+            } else {
+              console.warn(`Could not create tab stack for "${category}":`, response?.error);
+            }
+          } catch (err) {
+            console.warn(`Could not create tab stack in window for ${category}:`, err);
+            // Continue anyway - window is still created
+          }
+        }
+      }
       
     } catch (error) {
       console.error('Error in window mode:', error);
