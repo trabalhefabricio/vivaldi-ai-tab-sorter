@@ -37,18 +37,16 @@
 
 ## 📖 Full Documentation
 
-See [DOCUMENTATION.md](DOCUMENTATION.md) for:
-- Detailed installation instructions
-- Bridge script setup for Workspace mode
-- Usage guide and tips
-- Troubleshooting
-- Configuration examples
+### Setup & Usage
+- [DOCUMENTATION.md](DOCUMENTATION.md) - Complete feature documentation and usage guide
+- [INSTALL.md](INSTALL.md) - Detailed installation instructions (including bridge script)
+- [EXAMPLES.md](EXAMPLES.md) - Configuration examples for different use cases
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Problem-solving guide
 
-See [MANUAL_TESTING.md](MANUAL_TESTING.md) for:
-- Comprehensive manual testing guide
-- Step-by-step test procedures for each function
-- Test cases for all organization modes
-- Expected results and validation criteria
+### Testing
+- [QUICK_TEST.md](QUICK_TEST.md) - 5-minute smoke test to verify extension works
+- [MANUAL_TESTING.md](MANUAL_TESTING.md) - Comprehensive manual testing guide (15 test suites)
+- [TESTING_NOTES.md](TESTING_NOTES.md) - AI testing limitations and requirements
 
 ## 🎯 Perfect For
 
