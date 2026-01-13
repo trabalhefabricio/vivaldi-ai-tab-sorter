@@ -1044,8 +1044,8 @@ Return ONLY the JSON array, nothing else.`;
           for (let i = 1; i < validTabIds.length; i++) {
             const childTabId = validTabIds[i];
             try {
-              await new Promise((resolve, reject) => {
-                vivaldi.tabsPrivate.insertIntoTabStack(childTabId, parentTabId, (result) => {
+              await new Promise((resolve) => {
+                vivaldi.tabsPrivate.insertIntoTabStack(childTabId, parentTabId, () => {
                   if (chrome.runtime.lastError) {
                     console.warn(`Warning adding tab ${childTabId} to stack:`, chrome.runtime.lastError.message);
                     resolve(); // Don't fail the whole stack on one tab
