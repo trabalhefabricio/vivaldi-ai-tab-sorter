@@ -44,6 +44,12 @@ See [DOCUMENTATION.md](DOCUMENTATION.md) for:
 - Troubleshooting
 - Configuration examples
 
+See [MANUAL_TESTING.md](MANUAL_TESTING.md) for:
+- Comprehensive manual testing guide
+- Step-by-step test procedures for each function
+- Test cases for all organization modes
+- Expected results and validation criteria
+
 ## 🎯 Perfect For
 
 - Managing 200+ tabs across multiple windows
