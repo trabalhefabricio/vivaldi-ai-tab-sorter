@@ -14,11 +14,13 @@
 
 ---
 
+> **⚠️ Important**: This extension is specifically designed for **Vivaldi Browser** and uses Vivaldi's proprietary tab stacking and workspace APIs. It will **NOT work** in Chrome or other browsers.
+
 ## ✨ Features
 
 - 🤖 **AI-Powered**: Uses Gemini 2.0 Flash to analyze and categorize tabs
 - 🏆 **Vivaldi Workspaces**: Automatically create and organize tabs into Workspaces
-- 📚 **Tab Stacks**: Group tabs visually in your current window
+- 📚 **Tab Stacks**: Group tabs visually using Vivaldi's native tab stacking
 - 🪟 **Separate Windows**: Create dedicated windows for each category
 - 🎯 **Custom Rules**: Guide AI with your own logic rules
 - 🔄 **Duplicate Removal**: Optional deduplication before sorting

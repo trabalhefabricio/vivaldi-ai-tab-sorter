@@ -124,14 +124,16 @@ The bridge script is required to enable the Workspace organization feature. With
 - Requires bridge script installation
 
 ### Tab Stacks Mode
-- Creates tab groups/stacks within your current window
-- Groups are labeled with category names
-- No bridge script needed
+- Creates tab stacks within your current window using Vivaldi's native tab stacking
+- Each category becomes a collapsible stack with the first tab as the parent
+- No bridge script needed - uses vivaldi.tabsPrivate API directly
 - Good for quick visual organization
+- Note: Unlike Chrome tab groups, Vivaldi stacks don't have colors or titles
 
 ### Separate Windows Mode
 - Creates a new window for each category
 - Each window contains only tabs from that category
+- Optionally creates tab stacks within each window
 - No bridge script needed
 - Useful for working on different projects simultaneously
 

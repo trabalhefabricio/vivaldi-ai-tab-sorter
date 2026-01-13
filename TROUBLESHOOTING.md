@@ -175,6 +175,18 @@ This guide helps you solve common issues with the Vivaldi AI Tab Sorter extensio
 
 ## Tab Sorting Issues
 
+### "Vivaldi tab stacking API is not available"
+
+**Problem**: Tab Stacks mode fails with API not available error
+
+**Solutions**:
+1. **Ensure you're using Vivaldi browser** - This extension is specifically designed for Vivaldi
+2. **Update Vivaldi** - Make sure you're using a recent version of Vivaldi
+3. **Try a different mode** - Use Workspaces or Separate Windows mode instead
+4. Check browser console (F12) for specific API errors
+
+**Note**: This extension uses Vivaldi's proprietary `vivaldi.tabsPrivate` API, which is NOT available in Chrome or other Chromium browsers.
+
 ### Tabs Categorized Incorrectly
 
 **Problem**: AI assigns tabs to wrong categories
