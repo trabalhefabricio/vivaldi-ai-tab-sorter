@@ -36,7 +36,8 @@ async function organizeViaExtensionsAPI(categorizedTabs) {
   
   // Get all current windows to manage workspaces
   const windows = await chrome.windows.getAll({ populate: true });
-  const currentWindow = await chrome.windows.getCurrent();
+  // Get the last focused normal window instead of getCurrent() which doesn't work in service worker context
+  const currentWindow = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
   
   // Vivaldi supports creating windows with specific properties that act as workspaces
   // We'll create a separate window for each category
@@ -94,6 +95,10 @@ async function organizeViaExtensionsAPI(categorizedTabs) {
   }
   
   console.log(`Successfully created ${createdWindows.length} workspace windows`);
+  
+  if (createdWindows.length === 0) {
+    throw new Error('No workspace windows were created. Please ensure you have categorized tabs and try again.');
+  }
   
   // Focus back on original window if it still exists
   try {

@@ -828,15 +828,41 @@ Return ONLY the JSON array, nothing else.`;
       this.showStatus('Applying sorting...', 'info');
       document.getElementById('applyBtn').disabled = true;
       
+      let result;
       if (this.mode === 'workspaces') {
-        await this.applyWorkspaceMode();
+        result = await this.applyWorkspaceMode();
       } else if (this.mode === 'stacks') {
-        await this.applyStackMode();
+        result = await this.applyStackMode();
       } else if (this.mode === 'windows') {
-        await this.applyWindowMode();
+        result = await this.applyWindowMode();
       }
       
-      this.showStatus('✅ Tabs sorted successfully!', 'success');
+      // Validate that something actually happened
+      if (this.mode === 'stacks' && result) {
+        if (result.groupsCreated === 0) {
+          this.showStatus('❌ No tab groups were created. Please check your tabs and try again.', 'error');
+          document.getElementById('applyBtn').disabled = false;
+          return;
+        }
+        this.showStatus(`✅ Successfully created ${result.groupsCreated} tab stack${result.groupsCreated !== 1 ? 's' : ''}!`, 'success');
+      } else if (this.mode === 'windows' && result) {
+        if (result.windowsCreated === 0) {
+          this.showStatus('❌ No windows were created. Please check your tabs and try again.', 'error');
+          document.getElementById('applyBtn').disabled = false;
+          return;
+        }
+        this.showStatus(`✅ Successfully created ${result.windowsCreated} window${result.windowsCreated !== 1 ? 's' : ''}!`, 'success');
+      } else if (this.mode === 'workspaces' && result) {
+        if (result.windowsCreated === 0) {
+          this.showStatus('❌ No workspace windows were created. Please check your tabs and try again.', 'error');
+          document.getElementById('applyBtn').disabled = false;
+          return;
+        }
+        this.showStatus(`✅ Successfully created ${result.windowsCreated} workspace window${result.windowsCreated !== 1 ? 's' : ''}!`, 'success');
+      } else {
+        // Fallback for cases where result data is not available
+        this.showStatus('✅ Tabs sorted successfully!', 'success');
+      }
       
       // Reset state
       setTimeout(() => {
@@ -908,6 +934,9 @@ Return ONLY the JSON array, nothing else.`;
         console.log('✓ Organized using Vivaldi bridge script');
       }
       
+      // Return result data for validation
+      return response;
+      
     } catch (error) {
       console.error('Error in workspace mode:', error);
       
@@ -976,8 +1005,11 @@ Return ONLY the JSON array, nothing else.`;
         }
       } else {
         // Current window only
-        const currentWindow = await chrome.windows.getCurrent();
+        // Use getLastFocused with windowTypes to get the actual browser window, not the popup
+        const currentWindow = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
         targetWindowId = currentWindow.id;
+        
+        console.log(`Target window ID: ${targetWindowId}`);
         
         for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
           if (tabs.length === 0) continue;
@@ -985,6 +1017,15 @@ Return ONLY the JSON array, nothing else.`;
           const tabsInCurrentWindow = tabs.filter(t => t.windowId === currentWindow.id);
           if (tabsInCurrentWindow.length > 0) {
             allTabsToOrganize.push({ category, tabs: tabsInCurrentWindow });
+          }
+        }
+        
+        // Validate that we found tabs in the current window
+        if (allTabsToOrganize.length === 0) {
+          // Check if there are any tabs at all in the analyzed data
+          const totalTabsAnalyzed = Object.values(this.analyzedTabs).reduce((sum, tabs) => sum + tabs.length, 0);
+          if (totalTabsAnalyzed > 0) {
+            throw new Error(`No tabs found in the current window (window ID: ${targetWindowId}). ${totalTabsAnalyzed} tabs were analyzed but belong to other windows. Try using "All Windows" scope instead.`);
           }
         }
       }
@@ -1066,6 +1107,8 @@ Return ONLY the JSON array, nothing else.`;
         throw new Error(`Failed to create any tab groups. Attempted ${allTabsToOrganize.length} groups, all failed. Check the browser console for details.`);
       }
       
+      // Return the number of groups created for validation
+      return { groupsCreated, groupsFailed };
       
     } catch (error) {
       console.error('Error in stack mode:', error);
@@ -1132,6 +1175,9 @@ Return ONLY the JSON array, nothing else.`;
       }
       
       console.log(`✓ Created ${windowsCreated} windows with grouped tabs`);
+      
+      // Return the number of windows created for validation
+      return { windowsCreated };
       
     } catch (error) {
       console.error('Error in window mode:', error);
