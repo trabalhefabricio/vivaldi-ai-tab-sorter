@@ -1107,10 +1107,6 @@ Return ONLY the JSON array, nothing else.`;
         throw new Error(`Failed to create any tab groups. Attempted ${allTabsToOrganize.length} groups, all failed. Check the browser console for details.`);
       }
       
-      if (groupsCreated === 0) {
-        throw new Error('No tab groups were created. Please check that you have tabs to organize and try again.');
-      }
-      
       // Return the number of groups created for validation
       return { groupsCreated, groupsFailed };
       
@@ -1179,10 +1175,6 @@ Return ONLY the JSON array, nothing else.`;
       }
       
       console.log(`✓ Created ${windowsCreated} windows with grouped tabs`);
-      
-      if (windowsCreated === 0) {
-        throw new Error('No windows were created. Please check that you have categorized tabs and try again.');
-      }
       
       // Return the number of windows created for validation
       return { windowsCreated };
