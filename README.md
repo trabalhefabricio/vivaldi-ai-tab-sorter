@@ -30,12 +30,13 @@
 ## 🚀 Quick Start
 
 1. **Install Extension**: Load unpacked in `vivaldi://extensions`
-2. **Get API Key**: [Get your free Gemini API key](https://aistudio.google.com/app/apikey)
-3. **Configure**: Enter API key and categories
-4. **Analyze**: Click "Analyze & Preview"
-5. **Apply**: Click "Apply Sorting" to organize!
+2. **Install Bridge Script**: Required for Tab Stacks, Windows, and Workspaces modes (see [DOCUMENTATION.md](DOCUMENTATION.md))
+3. **Get API Key**: [Get your free Gemini API key](https://aistudio.google.com/app/apikey)
+4. **Configure**: Enter API key and categories
+5. **Analyze**: Click "Analyze & Preview"
+6. **Apply**: Click "Apply Sorting" to organize!
 
-**For Workspace Mode**: Install the bridge script (see [DOCUMENTATION.md](DOCUMENTATION.md))
+**Important**: The bridge script installation is required because Vivaldi-specific APIs (`vivaldi.tabsPrivate`, `vivaldi.workspaces`) are only accessible from Vivaldi's internal page context, not from extension popups.
 
 ## 📖 Full Documentation
 
