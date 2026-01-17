@@ -9,7 +9,7 @@
  * Usage:
  *   node diagnostic.js              # Run all diagnostics
  *   node diagnostic.js --quick      # Run quick checks only
- *   node diagnostic.js --output json # Output in JSON format
+ *   node diagnostic.js --json       # Output in JSON format
  */
 
 const fs = require('fs');
