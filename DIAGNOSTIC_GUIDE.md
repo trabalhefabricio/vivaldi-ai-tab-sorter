@@ -2,9 +2,99 @@
 
 ## Overview
 
-The Vivaldi AI Tab Sorter includes a comprehensive diagnostic tool that thoroughly tests every feature of the extension. It provides detailed reports to help you troubleshoot issues and verify that everything is working correctly.
+The Vivaldi AI Tab Sorter includes TWO diagnostic tools that work together:
 
-## Two Ways to Run Diagnostics
+1. **Functional Diagnostic** (`diagnostic-functional.html`) - Actually TESTS feature functionality
+2. **Static Diagnostic** (`diagnostic.js` and `diagnostic.html`) - Validates code and files
+
+## 🔬 Functional Diagnostic Tool (RECOMMENDED)
+
+### What It Does
+The functional diagnostic tool **actually executes each feature** with test data to detect exactly what's broken. Unlike the static tool which just checks if code exists, this tool RUNS the code and reports the exact failure.
+
+### How to Use
+1. Install the extension in `vivaldi://extensions`
+2. Navigate to `chrome-extension://[YOUR-EXTENSION-ID]/diagnostic-functional.html`
+   - Find your extension ID in the extensions page
+   - Or right-click the extension icon → Inspect Popup → Console → type `chrome.runtime.id`
+3. Click "Run All Functional Tests" or "Run Critical Tests Only"
+4. Review detailed results with exact error messages
+5. Export results to share when reporting issues
+
+### What It Tests
+
+#### Storage & Settings (3 tests)
+- ✅ **Storage Write/Read Test** - Verifies chrome.storage.local works correctly
+- ✅ **Settings Persistence Test** - Tests if settings (apiKey, categories, mode) save/load properly
+- ✅ **Rate Limiting Tracking Test** - Verifies request counter tracking works
+
+#### Tab Management (3 tests)
+- ✅ **Tab Query Test** - Tests if extension can read current tabs (id, url, title)
+- ✅ **Duplicate Detection Algorithm Test** - Executes duplicate detection with test data
+- ✅ **Tab Window Query Test** - Tests multi-window tab queries
+
+#### AI Response Parsing (2 tests)
+- ✅ **JSON Response Parsing Test** - Tests 4 different AI response formats
+  - Clean JSON arrays
+  - Markdown-wrapped JSON (```json```)
+  - JSON with text before/after
+- ✅ **Malformed JSON Handling Test** - Verifies graceful handling of invalid responses
+
+#### API Integration (2 tests)
+- ✅ **API Key Storage Test** - Tests if API keys can be stored securely
+- ✅ **API Connectivity Test** - Tests if Gemini API endpoint is reachable
+
+#### Background Service Worker (1 test)
+- ✅ **Message Passing Test** - Tests popup ↔ background communication
+
+#### Tab Organization (2 tests)
+- ✅ **Tab Groups API Test** - Tests if Tab Groups API is functional (for Stacks mode)
+- ✅ **Window Creation Test** - Tests if Windows API works (for Windows mode)
+
+### Understanding Functional Test Results
+
+**✅ PASSED**: Feature executed successfully, no errors
+**⚠️ WARNING**: Feature works but with limitations or unexpected behavior
+**❌ FAILED**: Feature execution threw an error - **this is what you need to fix!**
+
+### What Makes This Diagnostic "Functional"
+
+Traditional diagnostics check "does this file exist?" or "is this function defined?"
+
+This functional diagnostic actually:
+1. **Writes test data to storage** → reads it back → verifies it matches
+2. **Queries actual tabs** → checks required properties exist
+3. **Runs duplicate detection algorithm** → verifies correct duplicates found
+4. **Parses various JSON formats** → ensures all formats work
+5. **Sends messages to background worker** → verifies communication works
+6. **Tests API endpoints** → confirms connectivity
+
+### Example: How It Detects Real Problems
+
+**Scenario**: User reports "duplicate removal doesn't work"
+
+**Static diagnostic** would say:
+- ✅ popup.js exists
+- ✅ Contains "removeDuplicates" function
+- ✅ No syntax errors
+
+**Functional diagnostic** would say:
+```json
+{
+  "test": "Duplicate Detection Algorithm Test",
+  "status": "FAILED",
+  "error": "Expected 2 duplicates, found 0",
+  "details": {
+    "testTabs": 5,
+    "uniqueTabs": 5,
+    "duplicates": 0
+  }
+}
+```
+
+Now you know **exactly** what's broken: the algorithm isn't detecting duplicates!
+
+## 📋 Static Diagnostic Tools
 
 ### 1. Command-Line Tool (Node.js)
 

@@ -35,9 +35,26 @@
 
 **For Workspace Mode**: Install the bridge script (see [DOCUMENTATION.md](DOCUMENTATION.md))
 
-## 🔍 Diagnostic Tool
+## 🔍 Diagnostic Tools
 
-Having issues? Run the comprehensive diagnostic tool:
+Having issues? We have TWO diagnostic tools:
+
+### 1. Functional Diagnostic (Recommended for Troubleshooting)
+**Tests actual feature functionality with real execution:**
+
+```
+Open diagnostic-functional.html in the extension context
+```
+
+This tool:
+- ✅ Actually TESTS each feature by executing it
+- ✅ Uses real chrome APIs with test data
+- ✅ Detects EXACTLY what's broken and why
+- ✅ Shows detailed error messages and stack traces
+- ✅ Tests: Storage, Tab management, AI parsing, API integration, Background worker, Tab organization
+
+### 2. Static Diagnostic (For Code Validation)
+**Checks if code and files are present:**
 
 ```bash
 # Command-line (requires Node.js)
