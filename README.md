@@ -35,6 +35,19 @@
 
 **For Workspace Mode**: Install the bridge script (see [DOCUMENTATION.md](DOCUMENTATION.md))
 
+## 🔍 Diagnostic Tool
+
+Having issues? Run the comprehensive diagnostic tool:
+
+```bash
+# Command-line (requires Node.js)
+node diagnostic.js
+
+# Or open diagnostic.html in your browser
+```
+
+See [DIAGNOSTIC_GUIDE.md](DIAGNOSTIC_GUIDE.md) for detailed information.
+
 ## 📖 Full Documentation
 
 See [DOCUMENTATION.md](DOCUMENTATION.md) for:

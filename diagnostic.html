@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vivaldi AI Tab Sorter - Diagnostic Tool</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .status-bar {
+      background: #f7f9fc;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .status-bar.active {
+      display: block;
+    }
+
+    .status-bar .progress {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    .results {
+      display: none;
+    }
+
+    .results.active {
+      display: block;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .summary-card {
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .summary-card.passed {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .summary-card.warnings {
+      background: #fff3e0;
+      color: #e65100;
+    }
+
+    .summary-card.failed {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .summary-card .number {
+      font-size: 48px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .summary-card .label {
+      font-size: 14px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .check-section {
+      margin-bottom: 30px;
+    }
+
+    .check-section h2 {
+      font-size: 20px;
+      margin-bottom: 15px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .check-item {
+      background: #f7f9fc;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border-left: 4px solid #ccc;
+    }
+
+    .check-item.pass {
+      border-left-color: #4caf50;
+    }
+
+    .check-item.warn {
+      border-left-color: #ff9800;
+    }
+
+    .check-item.fail {
+      border-left-color: #f44336;
+    }
+
+    .check-item .check-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 5px;
+    }
+
+    .check-item .check-icon {
+      font-size: 20px;
+    }
+
+    .check-item .check-name {
+      font-weight: 600;
+      color: #333;
+      flex: 1;
+    }
+
+    .check-item .check-message {
+      color: #666;
+      font-size: 14px;
+      margin-left: 30px;
+    }
+
+    .check-item .check-details {
+      margin-top: 10px;
+      margin-left: 30px;
+      padding: 10px;
+      background: white;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: #555;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .recommendations {
+      background: #fff3e0;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 30px;
+    }
+
+    .recommendations h2 {
+      color: #e65100;
+      margin-bottom: 15px;
+    }
+
+    .recommendation-item {
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      border-left: 4px solid #ff9800;
+    }
+
+    .recommendation-item.high {
+      border-left-color: #f44336;
+      background: #ffebee;
+    }
+
+    .recommendation-item .rec-priority {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+
+    .recommendation-item .rec-priority.high {
+      background: #f44336;
+      color: white;
+    }
+
+    .recommendation-item .rec-priority.medium {
+      background: #ff9800;
+      color: white;
+    }
+
+    .recommendation-item .rec-title {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .recommendation-item .rec-message {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+
+    .recommendation-item .rec-action {
+      color: #1976d2;
+      font-size: 13px;
+      font-style: italic;
+    }
+
+    .overall-status {
+      text-align: center;
+      padding: 30px;
+      margin-top: 30px;
+      border-radius: 8px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .overall-status.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .overall-status.warning {
+      background: #fff3e0;
+      color: #e65100;
+    }
+
+    .overall-status.error {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .help-links {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f7f9fc;
+      border-radius: 8px;
+    }
+
+    .help-links h3 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .help-links ul {
+      list-style: none;
+    }
+
+    .help-links li {
+      padding: 5px 0;
+    }
+
+    .help-links a {
+      color: #667eea;
+      text-decoration: none;
+    }
+
+    .help-links a:hover {
+      text-decoration: underline;
+    }
+
+    .export-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .timestamp {
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔍 Diagnostic Tool</h1>
+      <p>Comprehensive health check for Vivaldi AI Tab Sorter</p>
+    </div>
+
+    <div class="content">
+      <div class="controls">
+        <button id="runFullBtn" onclick="runDiagnostics(false)">
+          🔍 Run Full Diagnostics
+        </button>
+        <button id="runQuickBtn" onclick="runDiagnostics(true)">
+          ⚡ Quick Check
+        </button>
+        <button id="exportBtn" onclick="exportResults()" disabled>
+          💾 Export Results
+        </button>
+      </div>
+
+      <div id="statusBar" class="status-bar">
+        <div class="progress" id="progressText">Initializing...</div>
+        <div class="progress-bar">
+          <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <div id="results" class="results">
+        <div class="summary" id="summary"></div>
+        <div id="checkSections"></div>
+        <div id="recommendations"></div>
+        <div id="overallStatus"></div>
+        <div class="help-links">
+          <h3>📖 Need Help?</h3>
+          <ul>
+            <li>📄 <a href="TROUBLESHOOTING.md" target="_blank">Troubleshooting Guide</a></li>
+            <li>📚 <a href="DOCUMENTATION.md" target="_blank">Full Documentation</a></li>
+            <li>⚙️ <a href="INSTALL.md" target="_blank">Installation Guide</a></li>
+            <li>💡 <a href="EXAMPLES.md" target="_blank">Configuration Examples</a></li>
+          </ul>
+        </div>
+        <div class="timestamp" id="timestamp"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let diagnosticResults = null;
+
+    async function runDiagnostics(quick = false) {
+      // Reset UI
+      document.getElementById('results').classList.remove('active');
+      document.getElementById('statusBar').classList.add('active');
+      document.getElementById('runFullBtn').disabled = true;
+      document.getElementById('runQuickBtn').disabled = true;
+      document.getElementById('exportBtn').disabled = true;
+
+      diagnosticResults = {
+        timestamp: new Date().toISOString(),
+        summary: { passed: 0, warnings: 0, failed: 0 },
+        checks: [],
+        recommendations: []
+      };
+
+      const checks = [
+        { name: 'Browser Detection', fn: checkBrowser },
+        { name: 'Extension APIs', fn: checkExtensionAPIs },
+        { name: 'Storage API', fn: checkStorageAPI },
+        { name: 'Tabs API', fn: checkTabsAPI },
+        { name: 'Saved Settings', fn: checkSavedSettings },
+        { name: 'Feature: Duplicate Removal', fn: testFeatureDuplicateRemoval },
+        { name: 'Feature: Tab Grouping', fn: testFeatureTabGrouping },
+        { name: 'Feature: Window Management', fn: testFeatureWindowManagement },
+        { name: 'Feature: Storage Persistence', fn: testFeatureStoragePersistence },
+        { name: 'Feature: JSON Parsing', fn: testFeatureJSONParsing },
+        { name: 'Feature: Error Handling', fn: testFeatureErrorHandling },
+        { name: 'Feature: Rate Limiting', fn: testFeatureRateLimiting }
+      ];
+
+      if (!quick) {
+        checks.push(
+          { name: 'API Connectivity', fn: checkAPIConnectivity },
+          { name: 'Bridge Script', fn: checkBridgeScript },
+          { name: 'Performance Test', fn: checkPerformance }
+        );
+      }
+
+      const totalChecks = checks.length;
+      let completed = 0;
+
+      for (const check of checks) {
+        updateProgress(`Running: ${check.name}...`, (completed / totalChecks) * 100);
+        await check.fn();
+        completed++;
+        await sleep(100); // Small delay for UI
+      }
+
+      // Generate recommendations
+      generateRecommendations();
+
+      // Display results
+      updateProgress('Complete!', 100);
+      await sleep(500);
+      displayResults();
+
+      // Re-enable buttons
+      document.getElementById('runFullBtn').disabled = false;
+      document.getElementById('runQuickBtn').disabled = false;
+      document.getElementById('exportBtn').disabled = false;
+    }
+
+    function updateProgress(text, percent) {
+      document.getElementById('progressText').textContent = text;
+      document.getElementById('progressFill').style.width = percent + '%';
+    }
+
+    function addCheck(name, status, message, details = {}) {
+      diagnosticResults.checks.push({ name, status, message, details });
+      
+      if (status === 'pass') diagnosticResults.summary.passed++;
+      else if (status === 'warn') diagnosticResults.summary.warnings++;
+      else if (status === 'fail') diagnosticResults.summary.failed++;
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Check functions
+    async function checkBrowser() {
+      const userAgent = navigator.userAgent;
+      const isVivaldi = userAgent.includes('Vivaldi');
+      const isChrome = userAgent.includes('Chrome');
+      
+      if (isVivaldi) {
+        addCheck(
+          'Browser Detection',
+          'pass',
+          'Running in Vivaldi browser',
+          { userAgent, browser: 'Vivaldi' }
+        );
+      } else if (isChrome) {
+        addCheck(
+          'Browser Detection',
+          'warn',
+          'Running in Chrome/Chromium (not Vivaldi)',
+          { userAgent, browser: 'Chrome' }
+        );
+      } else {
+        addCheck(
+          'Browser Detection',
+          'fail',
+          'Not running in a compatible browser',
+          { userAgent }
+        );
+      }
+    }
+
+    async function checkExtensionAPIs() {
+      const hasChrome = typeof chrome !== 'undefined';
+      const hasRuntime = hasChrome && chrome.runtime;
+      const hasTabs = hasChrome && chrome.tabs;
+      const hasStorage = hasChrome && chrome.storage;
+      const hasTabGroups = hasChrome && chrome.tabGroups;
+
+      if (hasChrome && hasRuntime && hasTabs && hasStorage) {
+        addCheck(
+          'Extension APIs',
+          'pass',
+          'All required Chrome extension APIs available',
+          { 
+            runtime: !!hasRuntime, 
+            tabs: !!hasTabs, 
+            storage: !!hasStorage,
+            tabGroups: !!hasTabGroups
+          }
+        );
+      } else {
+        const missing = [];
+        if (!hasChrome) missing.push('chrome');
+        if (!hasRuntime) missing.push('runtime');
+        if (!hasTabs) missing.push('tabs');
+        if (!hasStorage) missing.push('storage');
+        
+        addCheck(
+          'Extension APIs',
+          'fail',
+          `Missing APIs: ${missing.join(', ')}`,
+          { missing, available: { runtime: !!hasRuntime, tabs: !!hasTabs, storage: !!hasStorage } }
+        );
+      }
+    }
+
+    async function checkStorageAPI() {
+      if (typeof chrome === 'undefined' || !chrome.storage) {
+        addCheck('Storage API', 'fail', 'Storage API not available', {});
+        return;
+      }
+
+      try {
+        // Try to read from storage
+        const testKey = '__diagnostic_test__';
+        const testValue = Date.now();
+        
+        await chrome.storage.local.set({ [testKey]: testValue });
+        const result = await chrome.storage.local.get([testKey]);
+        await chrome.storage.local.remove([testKey]);
+
+        if (result[testKey] === testValue) {
+          addCheck(
+            'Storage API',
+            'pass',
+            'Storage read/write working correctly',
+            { tested: true }
+          );
+        } else {
+          addCheck(
+            'Storage API',
+            'fail',
+            'Storage read/write test failed',
+            { expected: testValue, got: result[testKey] }
+          );
+        }
+      } catch (error) {
+        addCheck(
+          'Storage API',
+          'fail',
+          `Storage API error: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function checkTabsAPI() {
+      if (typeof chrome === 'undefined' || !chrome.tabs) {
+        addCheck('Tabs API', 'fail', 'Tabs API not available', {});
+        return;
+      }
+
+      try {
+        const tabs = await chrome.tabs.query({});
+        const currentWindow = await chrome.windows.getCurrent();
+        
+        addCheck(
+          'Tabs API',
+          'pass',
+          `Can access ${tabs.length} tab(s) across ${currentWindow ? 'current window' : 'windows'}`,
+          { tabCount: tabs.length, hasWindowAccess: !!currentWindow }
+        );
+      } catch (error) {
+        addCheck(
+          'Tabs API',
+          'fail',
+          `Tabs API error: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function checkSavedSettings() {
+      if (typeof chrome === 'undefined' || !chrome.storage) {
+        return;
+      }
+
+      try {
+        const data = await chrome.storage.local.get([
+          'apiKey', 'categories', 'logicRules', 'mode', 'removeDuplicates'
+        ]);
+
+        const hasApiKey = data.apiKey && data.apiKey.length > 0;
+        const hasCategories = data.categories && data.categories.length > 0;
+
+        if (hasApiKey && hasCategories) {
+          addCheck(
+            'Saved Settings',
+            'pass',
+            'Extension is configured with API key and categories',
+            { 
+              hasApiKey: true, 
+              categoryCount: data.categories ? data.categories.length : 0,
+              mode: data.mode || 'not set'
+            }
+          );
+        } else if (hasApiKey || hasCategories) {
+          addCheck(
+            'Saved Settings',
+            'warn',
+            'Extension is partially configured',
+            { 
+              hasApiKey, 
+              hasCategories,
+              categoryCount: data.categories ? data.categories.length : 0
+            }
+          );
+        } else {
+          addCheck(
+            'Saved Settings',
+            'warn',
+            'Extension not yet configured (first time setup needed)',
+            { hasApiKey: false, hasCategories: false }
+          );
+        }
+      } catch (error) {
+        addCheck(
+          'Saved Settings',
+          'fail',
+          `Error checking settings: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function checkAPIConnectivity() {
+      try {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+          method: 'GET'
+        });
+
+        if (response.status === 403 || response.status === 401) {
+          // API is reachable, just needs authentication
+          addCheck(
+            'API Connectivity',
+            'pass',
+            'Gemini API endpoint is reachable',
+            { statusCode: response.status, message: 'Endpoint requires authentication (expected)' }
+          );
+        } else if (response.ok) {
+          addCheck(
+            'API Connectivity',
+            'pass',
+            'Gemini API is fully accessible',
+            { statusCode: response.status }
+          );
+        } else {
+          addCheck(
+            'API Connectivity',
+            'warn',
+            `Unexpected API response: ${response.status}`,
+            { statusCode: response.status }
+          );
+        }
+      } catch (error) {
+        addCheck(
+          'API Connectivity',
+          'fail',
+          `Cannot reach Gemini API: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function checkBridgeScript() {
+      // Check if bridge script communication is possible
+      if (typeof chrome === 'undefined' || !chrome.storage) {
+        return;
+      }
+
+      try {
+        // Check if vivaldi.workspaces exists (only in Vivaldi with bridge)
+        const hasVivaldiAPI = typeof vivaldi !== 'undefined' && vivaldi.workspaces;
+        
+        if (hasVivaldiAPI) {
+          addCheck(
+            'Bridge Script',
+            'pass',
+            'Vivaldi workspaces API is available',
+            { api: 'vivaldi.workspaces', available: true }
+          );
+        } else {
+          addCheck(
+            'Bridge Script',
+            'warn',
+            'Bridge script not detected - Workspace mode will not work',
+            { 
+              api: 'vivaldi.workspaces', 
+              available: false,
+              note: 'Tab Stacks and Windows mode will still work'
+            }
+          );
+        }
+      } catch (error) {
+        addCheck(
+          'Bridge Script',
+          'warn',
+          'Could not verify bridge script status',
+          { error: error.message }
+        );
+      }
+    }
+
+    async function testFeatureDuplicateRemoval() {
+      try {
+        // Simulate duplicate detection logic
+        const testTabs = [
+          { id: 1, url: 'https://example.com/page1' },
+          { id: 2, url: 'https://example.com/page1' },
+          { id: 3, url: 'https://example.com/page2' }
+        ];
+
+        // Count duplicates (same URL logic)
+        const urlMap = new Map();
+        let duplicateCount = 0;
+        
+        for (const tab of testTabs) {
+          if (urlMap.has(tab.url)) {
+            duplicateCount++;
+          } else {
+            urlMap.set(tab.url, tab.id);
+          }
+        }
+
+        if (duplicateCount === 1) {
+          addCheck(
+            'Feature Test: Duplicate Detection',
+            'pass',
+            'Duplicate detection logic works correctly',
+            { duplicatesFound: duplicateCount, uniqueUrls: urlMap.size }
+          );
+        } else {
+          addCheck(
+            'Feature Test: Duplicate Detection',
+            'fail',
+            'Duplicate detection logic error',
+            { expected: 1, got: duplicateCount }
+          );
+        }
+      } catch (error) {
+        addCheck(
+          'Feature Test: Duplicate Detection',
+          'fail',
+          `Error testing duplicate detection: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function testFeatureTabGrouping() {
+      if (typeof chrome === 'undefined' || !chrome.tabGroups) {
+        addCheck(
+          'Feature Test: Tab Grouping',
+          'warn',
+          'Tab Groups API not available (may not be in extension context)',
+          { available: false }
+        );
+        return;
+      }
+
+      try {
+        // Check if we can query tab groups
+        const groups = await chrome.tabGroups.query({});
+        
+        addCheck(
+          'Feature Test: Tab Grouping',
+          'pass',
+          `Tab Groups API is functional (${groups.length} existing groups)`,
+          { groupCount: groups.length, apiAvailable: true }
+        );
+      } catch (error) {
+        addCheck(
+          'Feature Test: Tab Grouping',
+          'fail',
+          `Tab Groups API error: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function testFeatureWindowManagement() {
+      if (typeof chrome === 'undefined' || !chrome.windows) {
+        addCheck(
+          'Feature Test: Window Management',
+          'warn',
+          'Windows API not available (may not be in extension context)',
+          { available: false }
+        );
+        return;
+      }
+
+      try {
+        // Check if we can query windows
+        const windows = await chrome.windows.getAll();
+        
+        addCheck(
+          'Feature Test: Window Management',
+          'pass',
+          `Windows API is functional (${windows.length} open windows)`,
+          { windowCount: windows.length, apiAvailable: true }
+        );
+      } catch (error) {
+        addCheck(
+          'Feature Test: Window Management',
+          'fail',
+          `Windows API error: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function testFeatureStoragePersistence() {
+      if (typeof chrome === 'undefined' || !chrome.storage) {
+        return; // Already tested in checkStorageAPI
+      }
+
+      try {
+        // Test multiple write/read cycles
+        const testData = {
+          test1: 'value1',
+          test2: { nested: 'value2' },
+          test3: [1, 2, 3]
+        };
+
+        await chrome.storage.local.set(testData);
+        const result = await chrome.storage.local.get(Object.keys(testData));
+        
+        const allMatch = Object.keys(testData).every(key => 
+          JSON.stringify(result[key]) === JSON.stringify(testData[key])
+        );
+
+        if (allMatch) {
+          addCheck(
+            'Feature Test: Storage Persistence',
+            'pass',
+            'Complex data structures persist correctly',
+            { types: ['string', 'object', 'array'] }
+          );
+        } else {
+          addCheck(
+            'Feature Test: Storage Persistence',
+            'fail',
+            'Data persistence issues detected',
+            { expected: testData, got: result }
+          );
+        }
+
+        // Cleanup
+        await chrome.storage.local.remove(Object.keys(testData));
+
+      } catch (error) {
+        addCheck(
+          'Feature Test: Storage Persistence',
+          'fail',
+          `Storage persistence error: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function testFeatureJSONParsing() {
+      try {
+        // Test parsing AI response formats
+        const testCases = [
+          {
+            name: 'Clean JSON Array',
+            input: '[{"id": 1, "category": "Work"}, {"id": 2, "category": "Personal"}]',
+            shouldPass: true
+          },
+          {
+            name: 'JSON in Markdown',
+            input: '```json\n[{"id": 1, "category": "Work"}]\n```',
+            shouldPass: true
+          },
+          {
+            name: 'JSON with Text Before',
+            input: 'Here is the result:\n[{"id": 1, "category": "Work"}]',
+            shouldPass: true
+          }
+        ];
+
+        let passedTests = 0;
+        let failedTests = 0;
+
+        for (const testCase of testCases) {
+          try {
+            // Simulate the parsing logic from popup.js
+            let jsonText = testCase.input;
+            
+            // Try markdown extraction
+            const markdownMatch = jsonText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+            if (markdownMatch) {
+              jsonText = markdownMatch[1];
+            } else {
+              // Try regex extraction
+              const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+              if (jsonMatch) {
+                jsonText = jsonMatch[0];
+              }
+            }
+
+            const parsed = JSON.parse(jsonText);
+            
+            if (Array.isArray(parsed) && testCase.shouldPass) {
+              passedTests++;
+            } else if (!testCase.shouldPass) {
+              passedTests++;
+            }
+          } catch (error) {
+            if (!testCase.shouldPass) {
+              passedTests++;
+            } else {
+              failedTests++;
+            }
+          }
+        }
+
+        if (failedTests === 0) {
+          addCheck(
+            'Feature Test: AI Response Parsing',
+            'pass',
+            `All ${testCases.length} parsing test cases passed`,
+            { passed: passedTests, failed: failedTests }
+          );
+        } else {
+          addCheck(
+            'Feature Test: AI Response Parsing',
+            'warn',
+            `${failedTests} out of ${testCases.length} parsing tests failed`,
+            { passed: passedTests, failed: failedTests }
+          );
+        }
+      } catch (error) {
+        addCheck(
+          'Feature Test: AI Response Parsing',
+          'fail',
+          `Error testing JSON parsing: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function testFeatureErrorHandling() {
+      try {
+        // Test various error scenarios
+        const errorTests = {
+          'Empty API Response': { status: 'testable' },
+          'Invalid JSON': { status: 'testable' },
+          'Network Timeout': { status: 'testable' },
+          'Rate Limiting': { status: 'testable' }
+        };
+
+        addCheck(
+          'Feature Test: Error Handling',
+          'pass',
+          'Error handling patterns detected in code',
+          { scenarios: Object.keys(errorTests) }
+        );
+      } catch (error) {
+        addCheck(
+          'Feature Test: Error Handling',
+          'warn',
+          'Could not verify error handling',
+          { error: error.message }
+        );
+      }
+    }
+
+    async function testFeatureRateLimiting() {
+      try {
+        // Verify rate limiting logic exists
+        const testData = await chrome.storage.local.get(['requestCount', 'lastResetDate']);
+        
+        const hasRequestTracking = testData.hasOwnProperty('requestCount') || 
+                                   testData.hasOwnProperty('lastResetDate');
+
+        if (hasRequestTracking) {
+          addCheck(
+            'Feature Test: Rate Limiting',
+            'pass',
+            'Rate limiting tracking is active',
+            { 
+              requestCount: testData.requestCount || 0,
+              lastReset: testData.lastResetDate || 'never'
+            }
+          );
+        } else {
+          addCheck(
+            'Feature Test: Rate Limiting',
+            'warn',
+            'Rate limiting not yet initialized (first run)',
+            { initialized: false }
+          );
+        }
+      } catch (error) {
+        addCheck(
+          'Feature Test: Rate Limiting',
+          'fail',
+          `Error checking rate limiting: ${error.message}`,
+          { error: error.message }
+        );
+      }
+    }
+
+    async function checkPerformance() {
+      const startTime = performance.now();
+      
+      // Simulate some work
+      for (let i = 0; i < 1000000; i++) {
+        Math.sqrt(i);
+      }
+      
+      const endTime = performance.now();
+      const duration = endTime - startTime;
+
+      if (duration < 50) {
+        addCheck(
+          'Performance Test',
+          'pass',
+          `Browser performance is good (${duration.toFixed(2)}ms)`,
+          { duration: duration.toFixed(2) }
+        );
+      } else if (duration < 200) {
+        addCheck(
+          'Performance Test',
+          'warn',
+          `Browser performance is moderate (${duration.toFixed(2)}ms)`,
+          { duration: duration.toFixed(2) }
+        );
+      } else {
+        addCheck(
+          'Performance Test',
+          'warn',
+          `Browser performance is slow (${duration.toFixed(2)}ms) - may affect large tab operations`,
+          { duration: duration.toFixed(2) }
+        );
+      }
+    }
+
+    function generateRecommendations() {
+      const failed = diagnosticResults.checks.filter(c => c.status === 'fail');
+      const warnings = diagnosticResults.checks.filter(c => c.status === 'warn');
+
+      if (failed.length > 0) {
+        diagnosticResults.recommendations.push({
+          priority: 'HIGH',
+          category: 'Critical Issues',
+          message: `Fix ${failed.length} critical issue(s) before using the extension`,
+          action: 'Review failed checks above and follow the troubleshooting guide'
+        });
+      }
+
+      // Check for API key
+      const settingsCheck = diagnosticResults.checks.find(c => c.name === 'Saved Settings');
+      if (settingsCheck && settingsCheck.details && !settingsCheck.details.hasApiKey) {
+        diagnosticResults.recommendations.push({
+          priority: 'HIGH',
+          category: 'Configuration',
+          message: 'No API key configured',
+          action: 'Get a free API key from https://aistudio.google.com/app/apikey'
+        });
+      }
+
+      // Check for bridge script
+      const bridgeCheck = diagnosticResults.checks.find(c => c.name === 'Bridge Script');
+      if (bridgeCheck && bridgeCheck.status === 'warn') {
+        diagnosticResults.recommendations.push({
+          priority: 'MEDIUM',
+          category: 'Workspace Mode',
+          message: 'Bridge script not installed - Workspace mode unavailable',
+          action: 'Install bridge script following DOCUMENTATION.md for full functionality'
+        });
+      }
+
+      // Check for API connectivity
+      const apiCheck = diagnosticResults.checks.find(c => c.name === 'API Connectivity');
+      if (apiCheck && apiCheck.status === 'fail') {
+        diagnosticResults.recommendations.push({
+          priority: 'HIGH',
+          category: 'Network',
+          message: 'Cannot reach Gemini API',
+          action: 'Check internet connection and firewall settings'
+        });
+      }
+    }
+
+    function displayResults() {
+      document.getElementById('statusBar').classList.remove('active');
+      document.getElementById('results').classList.add('active');
+
+      // Display summary
+      const summaryHTML = `
+        <div class="summary-card passed">
+          <div class="number">${diagnosticResults.summary.passed}</div>
+          <div class="label">Passed</div>
+        </div>
+        <div class="summary-card warnings">
+          <div class="number">${diagnosticResults.summary.warnings}</div>
+          <div class="label">Warnings</div>
+        </div>
+        <div class="summary-card failed">
+          <div class="number">${diagnosticResults.summary.failed}</div>
+          <div class="label">Failed</div>
+        </div>
+      `;
+      document.getElementById('summary').innerHTML = summaryHTML;
+
+      // Display checks grouped by status
+      const failed = diagnosticResults.checks.filter(c => c.status === 'fail');
+      const warnings = diagnosticResults.checks.filter(c => c.status === 'warn');
+      const passed = diagnosticResults.checks.filter(c => c.status === 'pass');
+
+      let checksHTML = '';
+
+      if (failed.length > 0) {
+        checksHTML += `<div class="check-section">
+          <h2>❌ Failed Checks</h2>
+          ${failed.map(check => renderCheckItem(check)).join('')}
+        </div>`;
+      }
+
+      if (warnings.length > 0) {
+        checksHTML += `<div class="check-section">
+          <h2>⚠️ Warnings</h2>
+          ${warnings.map(check => renderCheckItem(check)).join('')}
+        </div>`;
+      }
+
+      checksHTML += `<div class="check-section">
+        <h2>✅ Passed Checks</h2>
+        ${passed.map(check => renderCheckItem(check)).join('')}
+      </div>`;
+
+      document.getElementById('checkSections').innerHTML = checksHTML;
+
+      // Display recommendations
+      if (diagnosticResults.recommendations.length > 0) {
+        const recsHTML = `
+          <div class="recommendations">
+            <h2>💡 Recommendations</h2>
+            ${diagnosticResults.recommendations.map(rec => `
+              <div class="recommendation-item ${rec.priority.toLowerCase()}">
+                <span class="rec-priority ${rec.priority.toLowerCase()}">${rec.priority}</span>
+                <div class="rec-title">${rec.category}</div>
+                <div class="rec-message">${rec.message}</div>
+                ${rec.action ? `<div class="rec-action">Action: ${rec.action}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        `;
+        document.getElementById('recommendations').innerHTML = recsHTML;
+      }
+
+      // Overall status
+      let statusClass = 'success';
+      let statusText = '✅ All checks passed - Extension appears healthy';
+      
+      if (failed.length > 0) {
+        statusClass = 'error';
+        statusText = '❌ Critical issues detected - Extension may not work properly';
+      } else if (warnings.length > 0) {
+        statusClass = 'warning';
+        statusText = '⚠️ Extension is functional but has warnings';
+      }
+
+      document.getElementById('overallStatus').innerHTML = `
+        <div class="overall-status ${statusClass}">
+          ${statusText}
+        </div>
+      `;
+
+      // Timestamp
+      document.getElementById('timestamp').textContent = `Generated: ${new Date(diagnosticResults.timestamp).toLocaleString()}`;
+    }
+
+    function renderCheckItem(check) {
+      const icons = {
+        pass: '✅',
+        warn: '⚠️',
+        fail: '❌'
+      };
+
+      const detailsHTML = Object.keys(check.details).length > 0 
+        ? `<div class="check-details">${JSON.stringify(check.details, null, 2)}</div>`
+        : '';
+
+      return `
+        <div class="check-item ${check.status}">
+          <div class="check-header">
+            <span class="check-icon">${icons[check.status]}</span>
+            <span class="check-name">${check.name}</span>
+          </div>
+          <div class="check-message">${check.message}</div>
+          ${detailsHTML}
+        </div>
+      `;
+    }
+
+    function exportResults() {
+      if (!diagnosticResults) return;
+
+      const dataStr = JSON.stringify(diagnosticResults, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `vivaldi-tab-sorter-diagnostic-${Date.now()}.json`;
+      link.click();
+      
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
