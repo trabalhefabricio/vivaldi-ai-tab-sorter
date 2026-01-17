@@ -47,6 +47,13 @@ The HTML diagnostic tool runs in the browser and can test runtime features.
 3. Review the detailed report
 4. Export results if needed
 
+**Important Note:**
+- If you open `diagnostic.html` directly (e.g., by double-clicking), it will run **outside** the extension context
+- This means Extension APIs (chrome.runtime, chrome.tabs, chrome.storage) will not be available
+- You will see failures for these API checks - **this is expected behavior**
+- Algorithm tests (duplicate detection, JSON parsing, error handling) will still work correctly
+- For full runtime testing, use the command-line tool: `node diagnostic.js`
+
 **What It Tests:**
 - ✅ Browser detection (Vivaldi vs Chrome)
 - ✅ Extension APIs availability
@@ -73,6 +80,12 @@ The HTML diagnostic tool runs in the browser and can test runtime features.
 - ❌ **FAIL**: Critical issue that needs to be fixed
 
 ### Common Issues and Solutions
+
+#### ❌ "Missing APIs: runtime, tabs, storage"
+- **Cause**: Diagnostic tool opened outside extension context (e.g., double-clicking the HTML file)
+- **Solution**: This is expected! Use `node diagnostic.js` for comprehensive testing. The browser version is limited when not run in extension context.
+- **What works**: Algorithm tests, API connectivity, performance tests
+- **What doesn't work**: Extension-specific APIs (storage, tabs, windows)
 
 #### ❌ "Cannot reach Gemini API"
 - **Cause**: No internet connection or firewall blocking

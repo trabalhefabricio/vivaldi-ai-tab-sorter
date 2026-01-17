@@ -359,6 +359,44 @@
       margin-top: 20px;
     }
 
+    .context-notice {
+      background: #fff3e0;
+      border-left: 4px solid #ff9800;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .context-notice.active {
+      display: block;
+    }
+
+    .context-notice h3 {
+      color: #e65100;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .context-notice p {
+      color: #666;
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+
+    .context-notice .instructions {
+      background: white;
+      padding: 12px;
+      border-radius: 4px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .context-notice .instructions strong {
+      color: #e65100;
+    }
+
     @media (max-width: 768px) {
       .summary {
         grid-template-columns: 1fr;
@@ -382,6 +420,23 @@
     </div>
 
     <div class="content">
+      <div id="contextNotice" class="context-notice">
+        <h3>⚠️ Running Outside Extension Context</h3>
+        <p>This diagnostic tool is being run as a standalone HTML page. Some tests will fail because extension APIs are not available in this context.</p>
+        <p><strong>For full diagnostic capabilities, use one of these methods:</strong></p>
+        <div class="instructions">
+          <strong>Method 1:</strong> Run the command-line tool<br>
+          $ node diagnostic.js<br><br>
+          <strong>Method 2:</strong> Load as extension page<br>
+          1. Install extension in vivaldi://extensions<br>
+          2. Create a new file in extension folder: diagnostic_page.html<br>
+          3. Open it via extension context<br><br>
+          <strong>Method 3:</strong> Use command-line for full tests<br>
+          The command-line version (diagnostic.js) tests all features without needing extension context.
+        </div>
+        <p style="margin-top: 10px; font-size: 13px; font-style: italic;">Note: Algorithm tests (duplicate detection, JSON parsing, error handling) will still work correctly.</p>
+      </div>
+
       <div class="controls">
         <button id="runFullBtn" onclick="runDiagnostics(false)">
           🔍 Run Full Diagnostics
@@ -422,6 +477,21 @@
 
   <script>
     let diagnosticResults = null;
+
+    // Check if we're in extension context and show notice if not
+    function checkExtensionContext() {
+      const hasChrome = typeof chrome !== 'undefined';
+      const hasExtensionAPIs = hasChrome && chrome.runtime && chrome.tabs && chrome.storage;
+      
+      if (!hasExtensionAPIs) {
+        document.getElementById('contextNotice').classList.add('active');
+      }
+    }
+
+    // Run context check on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      checkExtensionContext();
+    });
 
     async function runDiagnostics(quick = false) {
       // Reset UI
@@ -1030,6 +1100,17 @@
     }
 
     async function testFeatureRateLimiting() {
+      // Check if chrome.storage is available first
+      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+        addCheck(
+          'Feature Test: Rate Limiting',
+          'warn',
+          'Cannot test rate limiting - Storage API not available (may not be in extension context)',
+          { available: false, reason: 'Storage API unavailable' }
+        );
+        return;
+      }
+
       try {
         // Verify rate limiting logic exists
         const testData = await chrome.storage.local.get(['requestCount', 'lastResetDate']);
@@ -1058,9 +1139,9 @@
       } catch (error) {
         addCheck(
           'Feature Test: Rate Limiting',
-          'fail',
-          `Error checking rate limiting: ${error.message}`,
-          { error: error.message }
+          'warn',
+          `Cannot verify rate limiting: ${error.message}`,
+          { error: error.message, reason: 'Storage access failed' }
         );
       }
     }
@@ -1104,7 +1185,20 @@
       const failed = diagnosticResults.checks.filter(c => c.status === 'fail');
       const warnings = diagnosticResults.checks.filter(c => c.status === 'warn');
 
-      if (failed.length > 0) {
+      // Check if we're not in extension context
+      const extensionAPICheck = diagnosticResults.checks.find(c => c.name === 'Extension APIs');
+      const isNotInExtensionContext = extensionAPICheck && extensionAPICheck.status === 'fail' && 
+        extensionAPICheck.details && extensionAPICheck.details.missing && 
+        extensionAPICheck.details.missing.includes('runtime');
+
+      if (isNotInExtensionContext) {
+        diagnosticResults.recommendations.push({
+          priority: 'HIGH',
+          category: 'Extension Context',
+          message: 'Diagnostic tool is running outside extension context',
+          action: 'Use "node diagnostic.js" command-line tool for full testing, or load this page within the extension'
+        });
+      } else if (failed.length > 0) {
         diagnosticResults.recommendations.push({
           priority: 'HIGH',
           category: 'Critical Issues',
@@ -1218,7 +1312,16 @@
       let statusClass = 'success';
       let statusText = '✅ All checks passed - Extension appears healthy';
       
-      if (failed.length > 0) {
+      // Check if we're not in extension context
+      const extensionAPICheck = diagnosticResults.checks.find(c => c.name === 'Extension APIs');
+      const isNotInExtensionContext = extensionAPICheck && extensionAPICheck.status === 'fail' && 
+        extensionAPICheck.details && extensionAPICheck.details.missing && 
+        extensionAPICheck.details.missing.includes('runtime');
+      
+      if (isNotInExtensionContext) {
+        statusClass = 'warning';
+        statusText = '⚠️ Running outside extension context - Use command-line tool (node diagnostic.js) for full testing';
+      } else if (failed.length > 0) {
         statusClass = 'error';
         statusText = '❌ Critical issues detected - Extension may not work properly';
       } else if (warnings.length > 0) {
