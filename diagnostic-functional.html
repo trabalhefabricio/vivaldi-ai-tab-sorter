@@ -417,9 +417,9 @@
             }
 
             const hasRequiredProps = tabs.every(tab => 
-              tab.hasOwnProperty('id') && 
-              tab.hasOwnProperty('url') && 
-              tab.hasOwnProperty('title')
+              Object.prototype.hasOwnProperty.call(tab, 'id') && 
+              Object.prototype.hasOwnProperty.call(tab, 'url') && 
+              Object.prototype.hasOwnProperty.call(tab, 'title')
             );
 
             if (!hasRequiredProps) {
