@@ -12,14 +12,42 @@ The Vivaldi AI Tab Sorter includes TWO diagnostic tools that work together:
 ### What It Does
 The functional diagnostic tool **actually executes each feature** with test data to detect exactly what's broken. Unlike the static tool which just checks if code exists, this tool RUNS the code and reports the exact failure.
 
-### How to Use
-1. Install the extension in `vivaldi://extensions`
-2. Navigate to `chrome-extension://[YOUR-EXTENSION-ID]/diagnostic-functional.html`
-   - Find your extension ID in the extensions page
-   - Or right-click the extension icon → Inspect Popup → Console → type `chrome.runtime.id`
-3. Click "Run All Functional Tests" or "Run Critical Tests Only"
-4. Review detailed results with exact error messages
-5. Export results to share when reporting issues
+### ⚠️ IMPORTANT: Must Run in Extension Context
+
+**❌ DO NOT open diagnostic-functional.html as a local file (double-clicking or file:/// URL)**
+
+The functional diagnostic requires Chrome Extension APIs that are only available when loaded as part of the extension.
+
+### How to Use (Step-by-Step)
+
+**Method 1: Via Extension ID (Recommended)**
+1. Install the extension in `vivaldi://extensions` (or `chrome://extensions`)
+2. Enable "Developer mode" if not already enabled
+3. Find your extension ID (shown below the extension name - looks like: `abcdefghijklmnop...`)
+4. Open a new tab and navigate to: `chrome-extension://[YOUR-EXTENSION-ID]/diagnostic-functional.html`
+5. Click "Run All Functional Tests"
+
+**Method 2: Find Extension ID via Console**
+1. Right-click the extension icon → "Inspect Popup"
+2. In the Console tab, type: `chrome.runtime.id` and press Enter
+3. Copy the extension ID
+4. Navigate to: `chrome-extension://[ID]/diagnostic-functional.html`
+
+**Example:**
+If your extension ID is `abcdefghijklmnopqrstuvwxyz123456`, navigate to:
+```
+chrome-extension://abcdefghijklmnopqrstuvwxyz123456/diagnostic-functional.html
+```
+
+### Common Mistakes
+
+**❌ ERROR: "Cannot read properties of undefined (reading 'local')"**
+- **Cause**: You opened the file directly (file:///path/to/diagnostic-functional.html)
+- **Solution**: Follow the steps above to open via chrome-extension:// URL
+
+**❌ ERROR: Tests are disabled**
+- **Cause**: Not in extension context
+- **Solution**: Use the chrome-extension:// URL, not file:///
 
 ### What It Tests
 
