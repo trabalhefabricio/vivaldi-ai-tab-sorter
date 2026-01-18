@@ -54,13 +54,6 @@
       padding: 15px;
       border-radius: 8px;
       margin-bottom: 20px;
-      display: none;
-    }
-
-    .warning-banner.error {
-      display: block;
-      background: #ffebee;
-      border-left-color: #f44336;
     }
 
     .warning-banner h3 {
@@ -68,29 +61,9 @@
       margin-bottom: 10px;
     }
 
-    .warning-banner.error h3 {
-      color: #c62828;
-    }
-
     .warning-banner p {
       color: #666;
       line-height: 1.6;
-    }
-
-    .warning-banner .instructions {
-      background: white;
-      padding: 15px;
-      border-radius: 6px;
-      margin-top: 15px;
-      font-family: monospace;
-      font-size: 13px;
-      line-height: 1.8;
-    }
-
-    .warning-banner .instructions strong {
-      color: #c62828;
-      display: block;
-      margin-bottom: 5px;
     }
 
     .controls {
@@ -288,25 +261,11 @@
     </div>
 
     <div class="content">
-      <div id="warningBanner" class="warning-banner">
+      <div class="warning-banner">
         <h3>⚠️ Extension Context Required</h3>
-        <p>This diagnostic tool must be run within the extension context to test actual functionality.</p>
+        <p>This diagnostic tool must be run within the extension context to test actual functionality. 
+        Open it by installing the extension and accessing this page through the extension.</p>
         <p><strong>Current status:</strong> <span id="contextStatus">Checking...</span></p>
-        <div id="usageInstructions" style="display: none;" class="instructions">
-          <strong>❌ ERROR: You're opening this as a local file!</strong>
-          This diagnostic tool requires Chrome Extension APIs that are only available when loaded as part of the extension.
-          <br><br>
-          <strong>How to use it correctly:</strong><br>
-          1. Install the extension in vivaldi://extensions (or chrome://extensions)<br>
-          2. Enable "Developer mode" if not already enabled<br>
-          3. Find the extension ID (below the extension name)<br>
-          4. Navigate to: chrome-extension://[YOUR-EXTENSION-ID]/diagnostic-functional.html<br>
-          5. Click "Run All Functional Tests"<br>
-          <br>
-          <strong>Alternative:</strong><br>
-          - Use the command-line tool: <code>node diagnostic.js</code><br>
-          - Or use the static diagnostic: open <code>diagnostic.html</code> in browser
-        </div>
       </div>
 
       <div class="controls">
@@ -339,54 +298,20 @@
     // Check extension context
     function checkContext() {
       const hasChrome = typeof chrome !== 'undefined';
-      const hasRuntime = hasChrome && typeof chrome.runtime !== 'undefined';
-      const hasTabs = hasChrome && typeof chrome.tabs !== 'undefined';
-      const hasStorage = hasChrome && typeof chrome.storage !== 'undefined';
+      const hasRuntime = hasChrome && chrome.runtime;
+      const hasTabs = hasChrome && chrome.tabs;
+      const hasStorage = hasChrome && chrome.storage;
 
       const statusEl = document.getElementById('contextStatus');
-      const warningBanner = document.getElementById('warningBanner');
-      const usageInstructions = document.getElementById('usageInstructions');
-      const runAllBtn = document.getElementById('runAllBtn');
-      const runCriticalBtn = document.getElementById('runCriticalBtn');
-
-      // Check if we're in extension context by verifying chrome APIs exist
-      // We need at least storage and tabs for functional tests
-      const inExtensionContext = hasStorage && hasTabs;
-
-      if (inExtensionContext) {
+      if (hasRuntime && hasTabs && hasStorage) {
         statusEl.textContent = '✅ Running in extension context';
         statusEl.style.color = '#2e7d32';
         statusEl.style.fontWeight = 'bold';
-        warningBanner.style.display = 'none';
-        
-        // Ensure buttons are enabled
-        runAllBtn.disabled = false;
-        runCriticalBtn.disabled = false;
-        runAllBtn.title = 'Run all 13 functional tests';
-        runCriticalBtn.title = 'Run critical tests only';
-        
         return true;
       } else {
-        statusEl.textContent = '❌ NOT in extension context - tests CANNOT run';
+        statusEl.textContent = '❌ NOT in extension context - tests will fail';
         statusEl.style.color = '#c62828';
         statusEl.style.fontWeight = 'bold';
-        warningBanner.classList.add('error');
-        usageInstructions.style.display = 'block';
-        
-        // Add debug info
-        const debugInfo = document.createElement('p');
-        debugInfo.style.fontSize = '12px';
-        debugInfo.style.marginTop = '10px';
-        debugInfo.style.fontFamily = 'monospace';
-        debugInfo.textContent = `Debug: chrome=${hasChrome}, runtime=${hasRuntime}, tabs=${hasTabs}, storage=${hasStorage}`;
-        usageInstructions.appendChild(debugInfo);
-        
-        // Disable test buttons
-        runAllBtn.disabled = true;
-        runCriticalBtn.disabled = true;
-        runAllBtn.title = 'Cannot run - not in extension context';
-        runCriticalBtn.title = 'Cannot run - not in extension context';
-        
         return false;
       }
     }
@@ -492,9 +417,9 @@
             }
 
             const hasRequiredProps = tabs.every(tab => 
-              Object.prototype.hasOwnProperty.call(tab, 'id') && 
-              Object.prototype.hasOwnProperty.call(tab, 'url') && 
-              Object.prototype.hasOwnProperty.call(tab, 'title')
+              tab.hasOwnProperty('id') && 
+              tab.hasOwnProperty('url') && 
+              tab.hasOwnProperty('title')
             );
 
             if (!hasRequiredProps) {
@@ -844,12 +769,6 @@
     }
 
     async function runTests(criticalOnly) {
-      // Check if we're in extension context first
-      if (!checkContext()) {
-        alert('ERROR: Cannot run tests!\n\nYou are opening this file directly (file:/// URL).\n\nThis tool requires Chrome Extension APIs that are only available when loaded as part of the extension.\n\nPlease:\n1. Install the extension in vivaldi://extensions\n2. Navigate to: chrome-extension://[YOUR-EXTENSION-ID]/diagnostic-functional.html\n\nSee the instructions above for details.');
-        return;
-      }
-
       testResults = {
         timestamp: new Date().toISOString(),
         passed: 0,
