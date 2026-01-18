@@ -269,13 +269,13 @@
       </div>
 
       <div class="controls">
-        <button id="runAllBtn" onclick="runAllTests()">
+        <button id="runAllBtn">
           🔬 Run All Functional Tests
         </button>
-        <button id="runCriticalBtn" onclick="runCriticalTests()">
+        <button id="runCriticalBtn">
           ⚡ Run Critical Tests Only
         </button>
-        <button id="exportBtn" onclick="exportResults()" disabled>
+        <button id="exportBtn" disabled>
           💾 Export Detailed Results
         </button>
       </div>
@@ -318,6 +318,13 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       checkContext();
+      
+      // Attach event listeners to buttons
+      document.getElementById('runAllBtn').addEventListener('click', runAllTests);
+      document.getElementById('runCriticalBtn').addEventListener('click', runCriticalTests);
+      document.getElementById('exportBtn').addEventListener('click', exportResults);
+      
+      console.log('Diagnostic tool loaded. Buttons initialized.');
     });
 
     // Test definitions
