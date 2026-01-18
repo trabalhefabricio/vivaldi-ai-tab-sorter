@@ -20,14 +20,20 @@ The functional diagnostic requires Chrome Extension APIs that are only available
 
 ### How to Use (Step-by-Step)
 
-**Method 1: Via Extension ID (Recommended)**
+**Method 1: From Extension Popup (EASIEST)**
+1. Click the extension icon in your browser
+2. Scroll to the bottom of the popup
+3. Click "🔬 Run Diagnostic Tests"
+4. The diagnostic tool will open in a new tab automatically
+
+**Method 2: Via Extension ID**
 1. Install the extension in `vivaldi://extensions` (or `chrome://extensions`)
 2. Enable "Developer mode" if not already enabled
 3. Find your extension ID (shown below the extension name - looks like: `abcdefghijklmnop...`)
 4. Open a new tab and navigate to: `chrome-extension://[YOUR-EXTENSION-ID]/diagnostic-functional.html`
 5. Click "Run All Functional Tests"
 
-**Method 2: Find Extension ID via Console**
+**Method 3: Find Extension ID via Console**
 1. Right-click the extension icon → "Inspect Popup"
 2. In the Console tab, type: `chrome.runtime.id` and press Enter
 3. Copy the extension ID

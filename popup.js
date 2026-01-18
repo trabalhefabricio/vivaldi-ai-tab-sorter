@@ -256,6 +256,14 @@ class TabSorter {
     document.getElementById('refreshModelsBtn').addEventListener('click', () => {
       this.fetchAvailableModels();
     });
+    
+    // Diagnostic link
+    document.getElementById('diagnosticLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('diagnostic-functional.html')
+      });
+    });
   }
   
   async fetchAvailableModels() {
