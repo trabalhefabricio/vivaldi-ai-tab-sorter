@@ -316,16 +316,32 @@
       }
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    // Initialize when DOM is ready - handle both cases where DOMContentLoaded has or hasn't fired
+    function initializeDiagnostic() {
       checkContext();
       
       // Attach event listeners to buttons
-      document.getElementById('runAllBtn').addEventListener('click', runAllTests);
-      document.getElementById('runCriticalBtn').addEventListener('click', runCriticalTests);
-      document.getElementById('exportBtn').addEventListener('click', exportResults);
+      const runAllBtn = document.getElementById('runAllBtn');
+      const runCriticalBtn = document.getElementById('runCriticalBtn');
+      const exportBtn = document.getElementById('exportBtn');
       
-      console.log('Diagnostic tool loaded. Buttons initialized.');
-    });
+      if (runAllBtn && runCriticalBtn && exportBtn) {
+        runAllBtn.addEventListener('click', runAllTests);
+        runCriticalBtn.addEventListener('click', runCriticalTests);
+        exportBtn.addEventListener('click', exportResults);
+        console.log('Diagnostic tool loaded. Buttons initialized.');
+      } else {
+        console.error('Failed to find buttons:', { runAllBtn, runCriticalBtn, exportBtn });
+      }
+    }
+
+    // Check if DOM is already loaded, otherwise wait for DOMContentLoaded
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeDiagnostic);
+    } else {
+      // DOM already loaded, initialize immediately
+      initializeDiagnostic();
+    }
 
     // Test definitions
     const testSuites = {
