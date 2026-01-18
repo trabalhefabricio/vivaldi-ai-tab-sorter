@@ -339,9 +339,9 @@
     // Check extension context
     function checkContext() {
       const hasChrome = typeof chrome !== 'undefined';
-      const hasRuntime = hasChrome && chrome.runtime;
-      const hasTabs = hasChrome && chrome.tabs;
-      const hasStorage = hasChrome && chrome.storage;
+      const hasRuntime = hasChrome && typeof chrome.runtime !== 'undefined';
+      const hasTabs = hasChrome && typeof chrome.tabs !== 'undefined';
+      const hasStorage = hasChrome && typeof chrome.storage !== 'undefined';
 
       const statusEl = document.getElementById('contextStatus');
       const warningBanner = document.getElementById('warningBanner');
@@ -349,11 +349,22 @@
       const runAllBtn = document.getElementById('runAllBtn');
       const runCriticalBtn = document.getElementById('runCriticalBtn');
 
-      if (hasRuntime && hasTabs && hasStorage) {
+      // Check if we're in extension context by verifying chrome APIs exist
+      // We need at least storage and tabs for functional tests
+      const inExtensionContext = hasStorage && hasTabs;
+
+      if (inExtensionContext) {
         statusEl.textContent = '✅ Running in extension context';
         statusEl.style.color = '#2e7d32';
         statusEl.style.fontWeight = 'bold';
         warningBanner.style.display = 'none';
+        
+        // Ensure buttons are enabled
+        runAllBtn.disabled = false;
+        runCriticalBtn.disabled = false;
+        runAllBtn.title = 'Run all 13 functional tests';
+        runCriticalBtn.title = 'Run critical tests only';
+        
         return true;
       } else {
         statusEl.textContent = '❌ NOT in extension context - tests CANNOT run';
@@ -361,6 +372,14 @@
         statusEl.style.fontWeight = 'bold';
         warningBanner.classList.add('error');
         usageInstructions.style.display = 'block';
+        
+        // Add debug info
+        const debugInfo = document.createElement('p');
+        debugInfo.style.fontSize = '12px';
+        debugInfo.style.marginTop = '10px';
+        debugInfo.style.fontFamily = 'monospace';
+        debugInfo.textContent = `Debug: chrome=${hasChrome}, runtime=${hasRuntime}, tabs=${hasTabs}, storage=${hasStorage}`;
+        usageInstructions.appendChild(debugInfo);
         
         // Disable test buttons
         runAllBtn.disabled = true;
