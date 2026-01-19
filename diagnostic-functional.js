@@ -705,59 +705,60 @@ const testSuites = {
       description: '⚠️ Creates test tabs, organizes into separate windows, and verifies windows are created',
       critical: false,
       test: async () => {
-        const testTabs = [];
         const createdWindows = [];
         
         try {
-          // Create test tabs
+          // Get current window to avoid closing it
+          const currentWindow = await chrome.windows.getCurrent();
+          const currentWindowId = currentWindow.id;
+          
+          // Create test tabs in new windows
           const categories = {
             'Work': ['https://github.com'],
             'Social': ['https://twitter.com']
           };
           
-          const categoryToTabs = {};
+          const categoryWindowMap = {};
           
           for (const [category, urls] of Object.entries(categories)) {
-            categoryToTabs[category] = [];
-            for (const url of urls) {
-              const tab = await chrome.tabs.create({ url, active: false });
-              testTabs.push(tab);
-              categoryToTabs[category].push(tab);
-            }
-          }
-          
-          // Wait for tabs to be created
-          await new Promise(resolve => setTimeout(resolve, TAB_LOAD_TIMEOUT));
-          
-          // Create windows for each category
-          for (const [category, tabs] of Object.entries(categoryToTabs)) {
-            const firstTab = tabs[0];
+            // Create a new window with the first URL
             const newWindow = await chrome.windows.create({
-              tabId: firstTab.id,
+              url: urls[0],
               focused: false
             });
             
             createdWindows.push(newWindow.id);
+            categoryWindowMap[category] = newWindow.id;
             
-            // Move other tabs to this window
-            for (let i = 1; i < tabs.length; i++) {
-              await chrome.tabs.move(tabs[i].id, {
+            // Create additional tabs in this window if there are more URLs
+            for (let i = 1; i < urls.length; i++) {
+              await chrome.tabs.create({
+                url: urls[i],
                 windowId: newWindow.id,
-                index: -1
+                active: false
               });
             }
           }
+          
+          // Wait for windows to be fully created
+          await new Promise(resolve => setTimeout(resolve, TAB_LOAD_TIMEOUT));
           
           // Verify windows were created
           const allWindows = await chrome.windows.getAll({ populate: true });
           const ourWindows = allWindows.filter(w => createdWindows.includes(w.id));
           
-          // Clean up: close test windows
+          // Clean up: close test windows (but never the current window)
           for (const windowId of createdWindows) {
-            try {
-              await chrome.windows.remove(windowId);
-            } catch (e) {
-              console.error('Error closing window:', e);
+            if (windowId !== currentWindowId) {
+              try {
+                // Verify window still exists before trying to close it
+                const windowStillExists = await chrome.windows.get(windowId).catch(() => null);
+                if (windowStillExists) {
+                  await chrome.windows.remove(windowId);
+                }
+              } catch (e) {
+                console.error('Error closing window:', e);
+              }
             }
           }
           
@@ -769,15 +770,21 @@ const testSuites = {
             success: true,
             message: 'Windows mode organization works correctly',
             categoriesCreated: Object.keys(categories).length,
-            tabsCreated: testTabs.length,
             windowsCreated: createdWindows.length,
-            windowsVerified: ourWindows.length
+            windowsVerified: ourWindows.length,
+            note: 'Test windows were safely created and cleaned up without affecting the main browser window'
           };
         } catch (error) {
-          // Clean up on error
+          // Clean up on error - but avoid closing current window
           try {
+            const currentWindow = await chrome.windows.getCurrent();
             for (const windowId of createdWindows) {
-              await chrome.windows.remove(windowId);
+              if (windowId !== currentWindow.id) {
+                const windowStillExists = await chrome.windows.get(windowId).catch(() => null);
+                if (windowStillExists) {
+                  await chrome.windows.remove(windowId);
+                }
+              }
             }
           } catch (cleanupError) {
             console.error('Cleanup error:', cleanupError);
