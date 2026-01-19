@@ -82,6 +82,19 @@ echo "  Total HTML lines: $(cat *.html | wc -l)"
 echo "  Documentation lines: $(cat *.md | wc -l)"
 
 echo ""
+echo "🔍 Running Diagnostic Tool..."
+if command -v node >/dev/null 2>&1; then
+  node diagnostic.js --quick
+  DIAGNOSTIC_EXIT=$?
+  if [ $DIAGNOSTIC_EXIT -ne 0 ]; then
+    echo "  ⚠ Diagnostic found some issues (see above)"
+  fi
+else
+  echo "  ⚠ Node.js not found - skipping full diagnostic"
+  echo "  ℹ Install Node.js to run comprehensive diagnostics"
+fi
+
+echo ""
 if [ $ERRORS -eq 0 ]; then
   echo "✅ All validation checks passed!"
   echo ""
@@ -90,6 +103,8 @@ if [ $ERRORS -eq 0 ]; then
   echo "   2. Enable Developer mode"
   echo "   3. Click 'Load unpacked'"
   echo "   4. Select this directory"
+  echo ""
+  echo "💡 Run 'node diagnostic.js' for comprehensive testing"
   exit 0
 else
   echo "❌ Validation failed with $ERRORS error(s)"
