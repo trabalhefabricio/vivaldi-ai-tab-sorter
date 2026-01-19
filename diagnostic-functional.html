@@ -268,12 +268,24 @@
         <p><strong>Current status:</strong> <span id="contextStatus">Checking...</span></p>
       </div>
 
+      <div class="warning-banner" style="border-left-color: #f44336; background: #ffebee;">
+        <h3>⚠️ End-to-End Tests Warning</h3>
+        <p><strong>This diagnostic now includes comprehensive E2E feature tests that will:</strong></p>
+        <ul style="margin-left: 20px; margin-top: 10px; line-height: 1.8;">
+          <li>Create and close multiple browser tabs and windows during testing</li>
+          <li><strong>Consume actual Gemini API quota</strong> (1 request) if API key is configured</li>
+          <li>Take several minutes to complete all tests</li>
+          <li>Test actual tab organization features (stacks, windows, duplicate removal)</li>
+        </ul>
+        <p style="margin-top: 10px;"><strong>Note:</strong> E2E tests are in the "End-to-End Features" section and can be reviewed before running.</p>
+      </div>
+
       <div class="controls">
         <button id="runAllBtn">
-          🔬 Run All Functional Tests
+          🔬 Run All Functional Tests (Including E2E)
         </button>
         <button id="runCriticalBtn">
-          ⚡ Run Critical Tests Only
+          ⚡ Run Critical Tests Only (Skips E2E)
         </button>
         <button id="exportBtn" disabled>
           💾 Export Detailed Results

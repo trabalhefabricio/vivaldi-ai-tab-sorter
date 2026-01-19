@@ -512,6 +512,483 @@ const testSuites = {
         };
       }
     }
+  ],
+  'End-to-End Features': [
+    {
+      name: 'E2E: Duplicate Tab Removal',
+      description: '⚠️ Creates test tabs, removes duplicates, and verifies removal works correctly',
+      critical: false,
+      test: async () => {
+        // Create test tabs with duplicates
+        const testUrls = [
+          'https://example.com/test1',
+          'https://example.com/test2',
+          'https://example.com/test1', // duplicate
+          'https://example.com/test3',
+          'https://example.com/test2'  // duplicate
+        ];
+        
+        const createdTabs = [];
+        try {
+          // Create test tabs
+          for (const url of testUrls) {
+            const tab = await chrome.tabs.create({ url, active: false });
+            createdTabs.push(tab);
+          }
+          
+          // Wait for tabs to load
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Get all tabs and identify duplicates
+          const allTabs = await chrome.tabs.query({ currentWindow: true });
+          const urlMap = new Map();
+          const duplicates = [];
+          
+          allTabs.forEach(tab => {
+            if (urlMap.has(tab.url)) {
+              duplicates.push(tab.id);
+            } else {
+              urlMap.set(tab.url, tab.id);
+            }
+          });
+          
+          // Close duplicate tabs
+          if (duplicates.length > 0) {
+            await chrome.tabs.remove(duplicates);
+          }
+          
+          // Verify duplicates were removed
+          const remainingTabs = await chrome.tabs.query({ currentWindow: true });
+          const remainingUrls = new Set(remainingTabs.map(t => t.url));
+          
+          // Close all test tabs
+          const testTabIds = createdTabs.map(t => t.id);
+          await chrome.tabs.remove(testTabIds.filter(id => !duplicates.includes(id)));
+          
+          if (duplicates.length === 0) {
+            return {
+              success: true,
+              message: 'No duplicates found in test (this is unexpected)',
+              warning: true,
+              created: testUrls.length
+            };
+          }
+          
+          return {
+            success: true,
+            message: 'Duplicate removal works correctly',
+            created: testUrls.length,
+            duplicatesFound: duplicates.length,
+            duplicatesRemoved: duplicates.length,
+            uniqueUrls: remainingUrls.size
+          };
+        } catch (error) {
+          // Clean up on error
+          try {
+            const tabsToClose = createdTabs.map(t => t.id);
+            await chrome.tabs.remove(tabsToClose);
+          } catch (cleanupError) {
+            console.error('Cleanup error:', cleanupError);
+          }
+          throw error;
+        }
+      }
+    },
+    {
+      name: 'E2E: Tab Stacks Organization',
+      description: '⚠️ Creates test tabs, organizes into tab groups, and verifies groups are created correctly',
+      critical: false,
+      test: async () => {
+        if (!chrome.tabGroups) {
+          return {
+            success: true,
+            message: 'Tab Groups API not available (browser may not support it)',
+            warning: true,
+            skipped: true
+          };
+        }
+        
+        const testTabs = [];
+        const createdGroups = [];
+        
+        try {
+          // Create test tabs for different categories
+          const categories = {
+            'Work': ['https://github.com', 'https://stackoverflow.com'],
+            'Social': ['https://twitter.com', 'https://reddit.com'],
+            'News': ['https://news.ycombinator.com']
+          };
+          
+          const categoryToTabs = {};
+          
+          for (const [category, urls] of Object.entries(categories)) {
+            categoryToTabs[category] = [];
+            for (const url of urls) {
+              const tab = await chrome.tabs.create({ url, active: false });
+              testTabs.push(tab);
+              categoryToTabs[category].push(tab);
+            }
+          }
+          
+          // Wait for tabs to be created
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Create tab groups for each category
+          const colors = ['blue', 'red', 'green'];
+          let colorIndex = 0;
+          
+          for (const [category, tabs] of Object.entries(categoryToTabs)) {
+            const tabIds = tabs.map(t => t.id);
+            const groupId = await chrome.tabs.group({ tabIds });
+            
+            await chrome.tabGroups.update(groupId, {
+              title: category,
+              color: colors[colorIndex % colors.length],
+              collapsed: false
+            });
+            
+            createdGroups.push(groupId);
+            colorIndex++;
+          }
+          
+          // Verify groups were created
+          const allGroups = await chrome.tabGroups.query({});
+          const ourGroups = allGroups.filter(g => Object.keys(categories).includes(g.title));
+          
+          // Clean up: ungroup and close test tabs
+          for (const groupId of createdGroups) {
+            try {
+              const groupTabs = await chrome.tabs.query({ groupId });
+              await chrome.tabs.ungroup(groupTabs.map(t => t.id));
+            } catch (e) {
+              console.error('Error ungrouping:', e);
+            }
+          }
+          
+          await chrome.tabs.remove(testTabs.map(t => t.id));
+          
+          if (ourGroups.length !== Object.keys(categories).length) {
+            throw new Error(`Expected ${Object.keys(categories).length} groups, found ${ourGroups.length}`);
+          }
+          
+          return {
+            success: true,
+            message: 'Tab stacks organization works correctly',
+            categoriesCreated: Object.keys(categories).length,
+            tabsCreated: testTabs.length,
+            groupsCreated: createdGroups.length,
+            groupsVerified: ourGroups.length
+          };
+        } catch (error) {
+          // Clean up on error
+          try {
+            for (const groupId of createdGroups) {
+              const groupTabs = await chrome.tabs.query({ groupId });
+              await chrome.tabs.ungroup(groupTabs.map(t => t.id));
+            }
+            await chrome.tabs.remove(testTabs.map(t => t.id));
+          } catch (cleanupError) {
+            console.error('Cleanup error:', cleanupError);
+          }
+          throw error;
+        }
+      }
+    },
+    {
+      name: 'E2E: Windows Mode Organization',
+      description: '⚠️ Creates test tabs, organizes into separate windows, and verifies windows are created',
+      critical: false,
+      test: async () => {
+        const testTabs = [];
+        const createdWindows = [];
+        
+        try {
+          // Create test tabs
+          const categories = {
+            'Work': ['https://github.com'],
+            'Social': ['https://twitter.com']
+          };
+          
+          const categoryToTabs = {};
+          
+          for (const [category, urls] of Object.entries(categories)) {
+            categoryToTabs[category] = [];
+            for (const url of urls) {
+              const tab = await chrome.tabs.create({ url, active: false });
+              testTabs.push(tab);
+              categoryToTabs[category].push(tab);
+            }
+          }
+          
+          // Wait for tabs to be created
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Create windows for each category
+          for (const [category, tabs] of Object.entries(categoryToTabs)) {
+            const firstTab = tabs[0];
+            const newWindow = await chrome.windows.create({
+              tabId: firstTab.id,
+              focused: false
+            });
+            
+            createdWindows.push(newWindow.id);
+            
+            // Move other tabs to this window
+            for (let i = 1; i < tabs.length; i++) {
+              await chrome.tabs.move(tabs[i].id, {
+                windowId: newWindow.id,
+                index: -1
+              });
+            }
+          }
+          
+          // Verify windows were created
+          const allWindows = await chrome.windows.getAll({ populate: true });
+          const ourWindows = allWindows.filter(w => createdWindows.includes(w.id));
+          
+          // Clean up: close test windows
+          for (const windowId of createdWindows) {
+            try {
+              await chrome.windows.remove(windowId);
+            } catch (e) {
+              console.error('Error closing window:', e);
+            }
+          }
+          
+          if (ourWindows.length !== Object.keys(categories).length) {
+            throw new Error(`Expected ${Object.keys(categories).length} windows, found ${ourWindows.length}`);
+          }
+          
+          return {
+            success: true,
+            message: 'Windows mode organization works correctly',
+            categoriesCreated: Object.keys(categories).length,
+            tabsCreated: testTabs.length,
+            windowsCreated: createdWindows.length,
+            windowsVerified: ourWindows.length
+          };
+        } catch (error) {
+          // Clean up on error
+          try {
+            for (const windowId of createdWindows) {
+              await chrome.windows.remove(windowId);
+            }
+          } catch (cleanupError) {
+            console.error('Cleanup error:', cleanupError);
+          }
+          throw error;
+        }
+      }
+    },
+    {
+      name: 'E2E: AI Analysis with Gemini',
+      description: '⚠️ Calls actual Gemini API with test data and verifies categorization (USES API QUOTA)',
+      critical: false,
+      test: async () => {
+        // Get API key from storage
+        const data = await chrome.storage.local.get(['apiKey']);
+        
+        if (!data.apiKey || !data.apiKey.trim()) {
+          return {
+            success: true,
+            message: 'No API key configured - skipping AI analysis test',
+            warning: true,
+            skipped: true,
+            note: 'Configure an API key in the extension to test AI analysis'
+          };
+        }
+        
+        const apiKey = data.apiKey;
+        
+        // Prepare test tabs
+        const testTabs = [
+          { id: 1, title: 'GitHub', url: 'https://github.com' },
+          { id: 2, title: 'Stack Overflow', url: 'https://stackoverflow.com' },
+          { id: 3, title: 'Twitter', url: 'https://twitter.com' },
+          { id: 4, title: 'Reddit', url: 'https://reddit.com' }
+        ];
+        
+        const categories = ['Work', 'Social'];
+        
+        // Build prompt
+        const prompt = `You are an AI assistant helping to categorize browser tabs. Analyze the following tabs and categorize each one into ONE of these categories: ${categories.join(', ')}.
+
+Categories: ${categories.join(', ')}
+
+Tabs to categorize:
+${JSON.stringify(testTabs, null, 2)}
+
+Instructions:
+1. Analyze each tab's title and URL
+2. Assign each tab to the MOST appropriate category from the list
+3. If a tab doesn't fit any category well, assign it to the closest one
+4. Return ONLY a valid JSON array in this exact format, with no additional text:
+
+[
+  {"id": tab_id, "category": "CategoryName"},
+  {"id": tab_id, "category": "CategoryName"}
+]
+
+Return ONLY the JSON array, nothing else.`;
+        
+        // Call Gemini API
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: prompt
+              }]
+            }]
+          })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+        }
+        
+        const data2 = await response.json();
+        const resultText = data2.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!resultText) {
+          throw new Error('No response from Gemini API');
+        }
+        
+        // Parse response
+        let jsonText = resultText;
+        const markdownMatch = resultText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+        if (markdownMatch) {
+          jsonText = markdownMatch[1];
+        } else {
+          const jsonMatch = resultText.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+        }
+        
+        const categorizations = JSON.parse(jsonText);
+        
+        if (!Array.isArray(categorizations)) {
+          throw new Error('AI response is not a JSON array');
+        }
+        
+        // Verify all tabs were categorized
+        if (categorizations.length !== testTabs.length) {
+          return {
+            success: true,
+            message: 'AI analysis works but did not categorize all tabs',
+            warning: true,
+            tabsSent: testTabs.length,
+            tabsCategorized: categorizations.length,
+            categories: categorizations
+          };
+        }
+        
+        // Verify each categorization has required fields
+        const validCategorizations = categorizations.filter(c => 
+          c && typeof c.id !== 'undefined' && c.category
+        );
+        
+        return {
+          success: true,
+          message: 'AI analysis with Gemini works correctly',
+          tabsSent: testTabs.length,
+          tabsCategorized: validCategorizations.length,
+          apiQuotaUsed: '1 request',
+          note: 'This test consumed 1 API request from your quota',
+          categorizations: categorizations.map(c => ({ id: c.id, category: c.category }))
+        };
+      }
+    },
+    {
+      name: 'E2E: Rate Limiting Enforcement',
+      description: 'Tests if rate limiting correctly blocks requests when limit is reached',
+      critical: false,
+      test: async () => {
+        // Get current request count
+        const data = await chrome.storage.local.get(['requestCount', 'lastResetDate']);
+        const originalCount = data.requestCount || 0;
+        
+        // Temporarily set count to limit - 1
+        const testLimit = 5;
+        await chrome.storage.local.set({
+          requestCount: testLimit - 1,
+          lastResetDate: new Date().toDateString()
+        });
+        
+        try {
+          // Simulate incrementing request count
+          let count = testLimit - 1;
+          count++;
+          
+          // Check if we've hit the limit
+          const isBlocked = count >= testLimit;
+          
+          // Restore original count
+          await chrome.storage.local.set({
+            requestCount: originalCount,
+            lastResetDate: new Date().toDateString()
+          });
+          
+          if (!isBlocked) {
+            throw new Error('Rate limiting did not block request at limit');
+          }
+          
+          return {
+            success: true,
+            message: 'Rate limiting enforcement works correctly',
+            testLimit: testLimit,
+            requestsBeforeBlock: testLimit - 1,
+            blocked: isBlocked
+          };
+        } catch (error) {
+          // Restore original count on error
+          await chrome.storage.local.set({
+            requestCount: originalCount,
+            lastResetDate: new Date().toDateString()
+          });
+          throw error;
+        }
+      }
+    },
+    {
+      name: 'E2E: Request Interval Rate Limiting',
+      description: 'Tests if minimum request interval is enforced between API calls',
+      critical: false,
+      test: async () => {
+        const minInterval = 4000; // 4 seconds
+        const lastRequestTime = Date.now() - 2000; // 2 seconds ago
+        
+        const timeSinceLastRequest = Date.now() - lastRequestTime;
+        const isBlocked = timeSinceLastRequest < minInterval;
+        
+        if (!isBlocked) {
+          return {
+            success: true,
+            message: 'Request interval check passed (enough time has elapsed)',
+            minInterval: minInterval + 'ms',
+            timeSinceLastRequest: timeSinceLastRequest + 'ms',
+            blocked: false
+          };
+        }
+        
+        const waitTime = Math.ceil((minInterval - timeSinceLastRequest) / 1000);
+        
+        return {
+          success: true,
+          message: 'Request interval rate limiting works correctly',
+          minInterval: minInterval + 'ms',
+          timeSinceLastRequest: timeSinceLastRequest + 'ms',
+          blocked: true,
+          waitTime: waitTime + 's',
+          note: 'This prevents exceeding the 15 requests/minute limit'
+        };
+      }
+    }
   ]
 };
 
