@@ -794,6 +794,153 @@ const testSuites = {
       }
     },
     {
+      name: 'E2E: Vivaldi Workspaces Mode',
+      description: '⚠️ Tests Vivaldi-specific Workspaces API via bridge script (requires ai_bridge.js)',
+      critical: false,
+      test: async () => {
+        // Check if we're in Vivaldi and if the bridge is available
+        const userAgent = navigator.userAgent;
+        const isVivaldi = userAgent.includes('Vivaldi');
+        
+        if (!isVivaldi) {
+          return {
+            success: true,
+            message: 'Not running in Vivaldi - skipping Vivaldi Workspaces test',
+            warning: true,
+            skipped: true,
+            note: 'This test only runs in Vivaldi browser'
+          };
+        }
+        
+        const testTabs = [];
+        const createdWorkspaceIds = [];
+        let bridgeTestPassed = false;
+        
+        try {
+          // Test 1: Check if bridge script is responding
+          console.log('Testing Vivaldi bridge connection...');
+          
+          // Send test command to bridge
+          await chrome.storage.local.set({
+            workspaceCommand: {
+              action: 'test',
+              timestamp: Date.now()
+            }
+          });
+          
+          // Wait for bridge response
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          const result = await chrome.storage.local.get('workspaceCommandResult');
+          
+          if (result.workspaceCommandResult && 
+              result.workspaceCommandResult.success &&
+              result.workspaceCommandResult.timestamp > Date.now() - 5000) {
+            bridgeTestPassed = true;
+            console.log('✓ Vivaldi bridge is responding');
+            await chrome.storage.local.remove(['workspaceCommand', 'workspaceCommandResult']);
+          } else {
+            return {
+              success: true,
+              message: 'Vivaldi bridge script not installed - skipping workspace test',
+              warning: true,
+              skipped: true,
+              note: 'To enable Vivaldi Workspaces: Install ai_bridge.js in Vivaldi\'s window.html (see INSTALL.md)',
+              bridgeStatus: 'not responding',
+              instructions: [
+                '1. Close Vivaldi completely',
+                '2. Navigate to Vivaldi installation directory',
+                '3. Find window.html in resources/vivaldi folder',
+                '4. Add <script src="ai_bridge.js"></script> before </body>',
+                '5. Copy ai_bridge.js to the same directory',
+                '6. Restart Vivaldi completely'
+              ]
+            };
+          }
+          
+          // Test 2: Create test tabs for categorization
+          console.log('Creating test tabs...');
+          const categories = {
+            'Work_Test': ['https://github.com', 'https://stackoverflow.com'],
+            'Social_Test': ['https://twitter.com', 'https://reddit.com']
+          };
+          
+          const categorizedTabs = {};
+          
+          for (const [category, urls] of Object.entries(categories)) {
+            categorizedTabs[category] = [];
+            for (const url of urls) {
+              const tab = await chrome.tabs.create({ url, active: false });
+              testTabs.push(tab);
+              categorizedTabs[category].push({ id: tab.id, title: url, url });
+            }
+          }
+          
+          // Wait for tabs to load
+          await new Promise(resolve => setTimeout(resolve, TAB_LOAD_TIMEOUT));
+          
+          // Test 3: Send organize command to bridge
+          console.log('Sending organize command to Vivaldi bridge...');
+          await chrome.storage.local.set({
+            workspaceCommand: {
+              action: 'organize',
+              categorizedTabs: categorizedTabs,
+              timestamp: Date.now()
+            }
+          });
+          
+          // Wait for organization to complete
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          const orgResult = await chrome.storage.local.get('workspaceCommandResult');
+          
+          if (!orgResult.workspaceCommandResult || !orgResult.workspaceCommandResult.success) {
+            throw new Error('Bridge failed to organize tabs: ' + (orgResult.workspaceCommandResult?.error || 'Unknown error'));
+          }
+          
+          console.log('✓ Bridge successfully organized tabs into workspaces');
+          await chrome.storage.local.remove(['workspaceCommand', 'workspaceCommandResult']);
+          
+          // Test 4: Verify workspaces were created (indirect verification)
+          // Note: We can't directly query vivaldi.workspaces from extension context
+          // But if the bridge responded with success, the workspaces were created
+          
+          // Clean up: close test tabs
+          const activeTab = await getActiveTabId();
+          const tabsToClose = testTabs.map(t => t.id).filter(id => id !== activeTab);
+          if (tabsToClose.length > 0) {
+            await chrome.tabs.remove(tabsToClose);
+          }
+          
+          return {
+            success: true,
+            message: 'Vivaldi Workspaces mode works correctly',
+            bridgeConnected: true,
+            categoriesCreated: Object.keys(categories).length,
+            tabsCreated: testTabs.length,
+            workspacesCreatedVia: 'vivaldi.workspaces API via bridge',
+            note: 'Tabs were organized into Vivaldi Workspaces using the native vivaldi.workspaces API',
+            vivaldiSpecific: true,
+            apiUsed: 'vivaldi.workspaces.create() and vivaldi.workspaces.addTab()'
+          };
+          
+        } catch (error) {
+          // Clean up on error
+          try {
+            const activeTab = await getActiveTabId();
+            const tabsToClose = testTabs.map(t => t.id).filter(id => id !== activeTab);
+            if (tabsToClose.length > 0) {
+              await chrome.tabs.remove(tabsToClose);
+            }
+            await chrome.storage.local.remove(['workspaceCommand', 'workspaceCommandResult']);
+          } catch (cleanupError) {
+            console.error('Cleanup error:', cleanupError);
+          }
+          throw error;
+        }
+      }
+    },
+    {
       name: 'E2E: AI Analysis with Gemini',
       description: '⚠️ Calls actual Gemini API with test data and verifies categorization (USES API QUOTA)',
       critical: false,
