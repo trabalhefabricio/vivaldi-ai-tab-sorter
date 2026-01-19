@@ -71,7 +71,21 @@ const testSuites = {
         const result = await chrome.storage.local.get(Object.keys(testData));
         await chrome.storage.local.remove(Object.keys(testData));
 
-        if (JSON.stringify(result) !== JSON.stringify(testData)) {
+        // Deep comparison instead of string comparison (JSON property order can vary)
+        const deepEqual = (obj1, obj2) => {
+          if (obj1 === obj2) return true;
+          if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 === null || obj2 === null) return false;
+          const keys1 = Object.keys(obj1);
+          const keys2 = Object.keys(obj2);
+          if (keys1.length !== keys2.length) return false;
+          for (let key of keys1) {
+            if (!keys2.includes(key)) return false;
+            if (!deepEqual(obj1[key], obj2[key])) return false;
+          }
+          return true;
+        };
+
+        if (!deepEqual(result, testData)) {
           throw new Error(`Data mismatch: wrote ${JSON.stringify(testData)}, read ${JSON.stringify(result)}`);
         }
 
