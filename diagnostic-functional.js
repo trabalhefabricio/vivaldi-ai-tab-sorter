@@ -1,3 +1,7 @@
+// Constants for test configuration
+const TAB_LOAD_TIMEOUT = 1000; // ms to wait for tabs to load
+const MIN_REQUEST_INTERVAL = 4000; // 4 seconds between API requests (15 RPM = 1 request per 4s)
+
 let testResults = {
   timestamp: null,
   passed: 0,
@@ -537,7 +541,7 @@ const testSuites = {
           }
           
           // Wait for tabs to load
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, TAB_LOAD_TIMEOUT));
           
           // Get all tabs and identify duplicates
           const allTabs = await chrome.tabs.query({ currentWindow: true });
@@ -659,7 +663,9 @@ const testSuites = {
           for (const groupId of createdGroups) {
             try {
               const groupTabs = await chrome.tabs.query({ groupId });
-              await chrome.tabs.ungroup(groupTabs.map(t => t.id));
+              if (groupTabs && groupTabs.length > 0) {
+                await chrome.tabs.ungroup(groupTabs.map(t => t.id));
+              }
             } catch (e) {
               console.error('Error ungrouping:', e);
             }
@@ -721,7 +727,7 @@ const testSuites = {
           }
           
           // Wait for tabs to be created
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, TAB_LOAD_TIMEOUT));
           
           // Create windows for each category
           for (const [category, tabs] of Object.entries(categoryToTabs)) {
@@ -960,28 +966,27 @@ Return ONLY the JSON array, nothing else.`;
       description: 'Tests if minimum request interval is enforced between API calls',
       critical: false,
       test: async () => {
-        const minInterval = 4000; // 4 seconds
         const lastRequestTime = Date.now() - 2000; // 2 seconds ago
         
         const timeSinceLastRequest = Date.now() - lastRequestTime;
-        const isBlocked = timeSinceLastRequest < minInterval;
+        const isBlocked = timeSinceLastRequest < MIN_REQUEST_INTERVAL;
         
         if (!isBlocked) {
           return {
             success: true,
             message: 'Request interval check passed (enough time has elapsed)',
-            minInterval: minInterval + 'ms',
+            minInterval: MIN_REQUEST_INTERVAL + 'ms',
             timeSinceLastRequest: timeSinceLastRequest + 'ms',
             blocked: false
           };
         }
         
-        const waitTime = Math.ceil((minInterval - timeSinceLastRequest) / 1000);
+        const waitTime = Math.ceil((MIN_REQUEST_INTERVAL - timeSinceLastRequest) / 1000);
         
         return {
           success: true,
           message: 'Request interval rate limiting works correctly',
-          minInterval: minInterval + 'ms',
+          minInterval: MIN_REQUEST_INTERVAL + 'ms',
           timeSinceLastRequest: timeSinceLastRequest + 'ms',
           blocked: true,
           waitTime: waitTime + 's',
