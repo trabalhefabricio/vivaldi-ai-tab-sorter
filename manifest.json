@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Vivaldi AI Tab Sorter",
-  "version": "1.0.0",
-  "description": "Intelligent tab organizer for Vivaldi using Gemini AI - sorts tabs into Workspaces, Tab Stacks, or Windows",
+  "version": "2.0.0",
+  "description": "AI-powered tab organizer designed specifically for Vivaldi - uses native Workspaces and Vivaldi APIs",
   "permissions": [
     "tabs",
     "storage",
-    "tabGroups"
+    "scripting"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -26,5 +26,19 @@
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["vivaldi-inject.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["vivaldi-core.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
