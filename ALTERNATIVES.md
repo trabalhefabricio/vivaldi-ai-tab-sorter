@@ -52,7 +52,7 @@ Vivaldi Browser
 - ❌ Requires running an additional program
 - ❌ Need to manage updates separately
 - ❌ Cannot access Vivaldi-specific APIs (Workspaces, Tab Stacks)
-- ❌ Security: Need to enable remote debugging in Vivaldi
+- ❌ Security concern: Need to enable remote debugging in Vivaldi
 - ❌ Less integrated user experience
 
 **Example Setup**:
@@ -221,15 +221,15 @@ Vivaldi Tabs
 
 ## Comparison Table
 
-| Approach | Installation Complexity | Maintenance | Vivaldi Features | Privacy | Best For |
-|----------|------------------------|-------------|------------------|---------|----------|
-| **Browser Extension** (Current) | ⭐⭐⭐⭐⭐ Easy | ⭐⭐⭐⭐⭐ Easy | ⭐⭐⭐⭐⭐ Full | ⭐⭐⭐⭐⭐ Local | **Everyone** |
-| **+ Bridge Script** (Current) | ⭐⭐⭐⭐ Moderate | ⭐⭐⭐ Moderate | ⭐⭐⭐⭐⭐ Full | ⭐⭐⭐⭐⭐ Local | **Workspace users** |
-| Desktop App | ⭐⭐ Complex | ⭐⭐ Complex | ⭐⭐ Limited | ⭐⭐⭐⭐⭐ Local | Power users |
-| CLI Tool | ⭐⭐ Complex | ⭐⭐ Moderate | ⭐⭐ Limited | ⭐⭐⭐⭐⭐ Local | Scripters |
-| Userscript | ⭐⭐⭐ Moderate | ⭐⭐⭐ Easy | ⭐ Minimal | ⭐⭐⭐⭐ Local | Not suitable |
-| Web Service | ⭐⭐⭐⭐ Easy | ⭐⭐⭐⭐⭐ Easy | ⭐⭐⭐ Good | ⭐⭐ Remote | Users who want sync |
-| Vivaldi Mods | ⭐ Very Complex | ⭐ Very Hard | ⭐⭐⭐⭐⭐ Full | ⭐⭐⭐⭐⭐ Local | Advanced users |
+| Approach | Installation | Maintenance | Vivaldi Features | Privacy | Best For |
+|----------|-------------|-------------|------------------|---------|----------|
+| **Browser Extension** (Current) | Easy (5/5) | Easy (5/5) | Full (5/5) | Excellent - Local (5/5) | **Everyone** |
+| **+ Bridge Script** (Current) | Moderate (4/5) | Moderate (3/5) | Full (5/5) | Excellent - Local (5/5) | **Workspace users** |
+| Desktop App | Complex (2/5) | Complex (2/5) | Limited (2/5) | Excellent - Local (5/5) | Power users |
+| CLI Tool | Complex (2/5) | Moderate (3/5) | Limited (2/5) | Excellent - Local (5/5) | Scripters |
+| Userscript | Moderate (3/5) | Easy (4/5) | Minimal (1/5) | Good - Local (4/5) | Not suitable |
+| Web Service | Easy (4/5) | Easy (5/5) | Good (3/5) | Poor - Remote (2/5) | Users who want sync |
+| Vivaldi Mods | Very Complex (1/5) | Very Hard (1/5) | Full (5/5) | Excellent - Local (5/5) | Advanced users |
 
 ---
 
@@ -282,8 +282,7 @@ Best for users who want a standalone tool and don't mind additional setup.
 **Quick concept**:
 ```python
 # tab-sorter.py - Standalone Desktop App Concept
-import requests
-from cdp import CDP  # Chrome DevTools Protocol
+from cdp import CDP  # Chrome DevTools Protocol library
 
 # Connect to Vivaldi
 cdp = CDP('localhost', 9222)
@@ -291,7 +290,7 @@ cdp = CDP('localhost', 9222)
 # Get all tabs
 tabs = cdp.get_tabs()
 
-# Analyze with Gemini
+# Analyze with Gemini (gemini_api would handle the requests)
 categories = gemini_api.analyze(tabs)
 
 # Organize tabs
@@ -315,12 +314,13 @@ Best for power users who want scripting capabilities.
 # Start Vivaldi with remote debugging if not running
 vivaldi --remote-debugging-port=9222 &
 
-# Run tab sorter
+# Run tab sorter (reads API key from environment or config file)
 node tab-sorter-cli.js \
   --categories "Work,Personal,Shopping" \
-  --api-key $GEMINI_API_KEY \
   --mode windows
 ```
+
+**Note**: For security, API keys should be stored in environment variables or secure config files, not passed as command-line arguments.
 
 ---
 
