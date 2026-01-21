@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vivaldi Extension Diagnostics</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 500px;
+      min-height: 400px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      padding: 20px;
+    }
+    
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      font-size: 22px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    .status-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+    }
+    
+    .status-section h2 {
+      font-size: 16px;
+      margin-bottom: 10px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .status-item:last-child {
+      border-bottom: none;
+    }
+    
+    .status-label {
+      font-weight: 500;
+    }
+    
+    .status-value {
+      font-family: monospace;
+    }
+    
+    .status-ok {
+      color: #4ade80;
+    }
+    
+    .status-error {
+      color: #f87171;
+    }
+    
+    .status-warning {
+      color: #fbbf24;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 10px;
+    }
+    
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    #diagnosticLog {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      padding: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top: 3px solid #fff;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Extension Diagnostics</h1>
+    
+    <div class="status-section">
+      <h2>Browser Detection</h2>
+      <div class="status-item">
+        <span class="status-label">Browser:</span>
+        <span class="status-value" id="browserName">Checking...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Vivaldi Detected:</span>
+        <span class="status-value" id="vivaldiDetected">Checking...</span>
+      </div>
+    </div>
+    
+    <div class="status-section">
+      <h2>Extension Status</h2>
+      <div class="status-item">
+        <span class="status-label">Extension Loaded:</span>
+        <span class="status-value status-ok" id="extensionLoaded">✓ Yes</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Auto-Injection:</span>
+        <span class="status-value" id="injectionStatus">Checking...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Vivaldi API Access:</span>
+        <span class="status-value" id="vivaldiApiStatus">Checking...</span>
+      </div>
+    </div>
+    
+    <div class="status-section">
+      <h2>Available APIs</h2>
+      <div class="status-item">
+        <span class="status-label">vivaldi.workspaces:</span>
+        <span class="status-value" id="apiWorkspaces">Checking...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">vivaldi.tabsPrivate:</span>
+        <span class="status-value" id="apiTabsPrivate">Checking...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">chrome.tabGroups:</span>
+        <span class="status-value" id="apiTabGroups">Checking...</span>
+      </div>
+    </div>
+    
+    <div class="status-section">
+      <h2>Current State</h2>
+      <div class="status-item">
+        <span class="status-label">Open Tabs:</span>
+        <span class="status-value" id="tabCount">Checking...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Open Windows:</span>
+        <span class="status-value" id="windowCount">Checking...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Workspaces:</span>
+        <span class="status-value" id="workspaceCount">Checking...</span>
+      </div>
+    </div>
+    
+    <button id="runDiagnostics">🔄 Refresh Diagnostics</button>
+    <button id="testVivaldiApi">🧪 Test Vivaldi API</button>
+    <button id="backToMain">← Back to Main</button>
+    
+    <div class="status-section">
+      <h2>Diagnostic Log</h2>
+      <div id="diagnosticLog">Running diagnostics...</div>
+    </div>
+    
+    <div id="loadingSpinner" class="spinner hidden"></div>
+  </div>
+  
+  <script src="diagnostics.js"></script>
+</body>
+</html>

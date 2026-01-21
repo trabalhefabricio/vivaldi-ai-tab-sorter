@@ -1,73 +1,212 @@
-// ai_bridge.js - Vivaldi Workspace Bridge Script
-// This script must be injected into Vivaldi's window.html to access vivaldi.workspaces API
-// 
-// Installation:
-// 1. Close Vivaldi completely
-// 2. Navigate to Vivaldi's application folder:
-//    - Windows: C:\Users\[YourUsername]\AppData\Local\Vivaldi\Application\[version]\resources\vivaldi
-//    - macOS: /Applications/Vivaldi.app/Contents/Versions/[version]/Vivaldi Framework.framework/Resources/vivaldi
-//    - Linux: /opt/vivaldi/resources/vivaldi
-// 3. Open window.html in a text editor
-// 4. Add this line before the closing </body> tag:
-//    <script src="ai_bridge.js"></script>
-// 5. Copy this ai_bridge.js file to the same directory
-// 6. Restart Vivaldi
+// vivaldi-core.js - Vivaldi API Integration (Auto-Injected)
+// This script runs in the PAGE CONTEXT where vivaldi.* APIs are available
+// It is automatically injected by vivaldi-inject.js content script
+//
+// This provides full access to Vivaldi's native APIs for the extension
 
 (function() {
   'use strict';
   
-  console.log('Vivaldi AI Tab Sorter Bridge Script loaded');
+  console.log('[Vivaldi Core] Loading...');
   
-  // Check if we have access to vivaldi.workspaces API
-  if (typeof vivaldi === 'undefined' || !vivaldi.workspaces) {
-    console.error('Vivaldi workspaces API not available');
+  // Check if Vivaldi APIs are available
+  const hasVivaldiAPI = typeof vivaldi !== 'undefined';
+  const hasWorkspaces = hasVivaldiAPI && vivaldi.workspaces;
+  const hasTabsPrivate = hasVivaldiAPI && vivaldi.tabsPrivate;
+  
+  console.log('[Vivaldi Core] API Status:', {
+    hasVivaldiAPI,
+    hasWorkspaces,
+    hasTabsPrivate
+  });
+  
+  if (!hasVivaldiAPI) {
+    console.warn('[Vivaldi Core] Vivaldi APIs not available in this context');
+    notifyStatus({ available: false, reason: 'No Vivaldi API' });
     return;
   }
   
-  // Listen for commands from the extension via storage
-  chrome.storage.onChanged.addListener(async (changes, namespace) => {
-    if (namespace !== 'local') return;
+  if (!hasWorkspaces) {
+    console.warn('[Vivaldi Core] Vivaldi Workspaces API not available');
+    notifyStatus({ available: false, reason: 'No Workspaces API' });
+    return;
+  }
+  
+  console.log('[Vivaldi Core] Vivaldi APIs detected and ready!');
+  
+  // Notify extension that Vivaldi APIs are available
+  notifyStatus({ available: true, apis: { workspaces: hasWorkspaces, tabsPrivate: hasTabsPrivate } });
+  
+  // Listen for commands via window.postMessage (from vivaldi-inject.js)
+  window.addEventListener('message', async function(event) {
+    if (event.source !== window) return;
     
-    if (changes.workspaceCommand && changes.workspaceCommand.newValue) {
-      const command = changes.workspaceCommand.newValue;
-      console.log('Received workspace command:', command);
-      
-      try {
-        if (command.action === 'test') {
-          // Simple test response to verify bridge is loaded
-          console.log('Bridge test request received, responding...');
-          await chrome.storage.local.set({
-            workspaceCommandResult: {
-              success: true,
-              message: 'Bridge is responding',
-              timestamp: Date.now()
-            }
-          });
-        } else if (command.action === 'organize') {
-          await organizeTabsToWorkspaces(command.categorizedTabs);
-          
-          // Send success response
-          await chrome.storage.local.set({
-            workspaceCommandResult: {
-              success: true,
-              timestamp: Date.now()
-            }
-          });
-        }
-      } catch (error) {
-        console.error('Error processing workspace command:', error);
-        
-        // Send error response
-        await chrome.storage.local.set({
-          workspaceCommandResult: {
-            success: false,
-            error: error.message,
-            timestamp: Date.now()
-          }
-        });
-      }
+    if (event.data.type === 'EXTENSION_TO_VIVALDI') {
+      const command = event.data.payload;
+      await handleCommand(command);
     }
   });
+  
+  // Also listen via chrome.storage for fallback compatibility with existing code
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    chrome.storage.onChanged.addListener(async (changes, namespace) => {
+      if (namespace !== 'local') return;
+      
+      if (changes.workspaceCommand && changes.workspaceCommand.newValue) {
+        const command = changes.workspaceCommand.newValue;
+        console.log('[Vivaldi Core] Received command via storage:', command);
+        await handleCommand(command);
+      }
+    });
+  }
+  
+  function notifyStatus(status) {
+    // Notify via postMessage
+    window.postMessage({
+      type: 'VIVALDI_TO_EXTENSION',
+      payload: {
+        action: 'status',
+        ...status,
+        timestamp: Date.now()
+      }
+    }, '*');
+    
+    // Also notify via storage for fallback
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.set({
+        vivaldiApiStatus: {
+          ...status,
+          timestamp: Date.now()
+        }
+      }).catch(err => console.error('[Vivaldi Core] Error setting status:', err));
+    }
+  }
+  
+  async function handleCommand(command) {
+    console.log('[Vivaldi Core] Handling command:', command.action);
+    
+    try {
+      let result;
+      
+      switch (command.action) {
+        case 'test':
+          result = { success: true, message: 'Vivaldi Core is responding', apis: { workspaces: hasWorkspaces, tabsPrivate: hasTabsPrivate } };
+          break;
+          
+        case 'organize':
+          result = await organizeTabsToWorkspaces(command.categorizedTabs);
+          break;
+          
+        case 'getWorkspaces':
+          result = await getWorkspaces();
+          break;
+          
+        case 'createWorkspace':
+          result = await createWorkspace(command.name);
+          break;
+          
+        case 'diagnostics':
+          result = await runDiagnostics();
+          break;
+          
+        default:
+          result = { success: false, error: `Unknown command: ${command.action}` };
+      }
+      
+      // Send result back
+      sendResult(result);
+      
+    } catch (error) {
+      console.error('[Vivaldi Core] Error handling command:', error);
+      sendResult({ success: false, error: error.message });
+    }
+  }
+  
+  function sendResult(result) {
+    // Send via postMessage
+    window.postMessage({
+      type: 'VIVALDI_TO_EXTENSION',
+      payload: {
+        action: 'command_result',
+        result: result,
+        timestamp: Date.now()
+      }
+    }, '*');
+    
+    // Also send via storage for fallback (for backward compatibility)
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.set({
+        workspaceCommandResult: {
+          ...result,
+          timestamp: Date.now()
+        }
+      }).catch(err => console.error('[Vivaldi Core] Error sending result:', err));
+    }
+  }
+  
+  async function runDiagnostics() {
+    const diagnostics = {
+      vivaldiDetected: typeof vivaldi !== 'undefined',
+      apis: {},
+      workspaces: [],
+      tabsCount: 0
+    };
+    
+    if (typeof vivaldi !== 'undefined') {
+      diagnostics.apis.workspaces = !!vivaldi.workspaces;
+      diagnostics.apis.tabsPrivate = !!vivaldi.tabsPrivate;
+      diagnostics.apis.utilities = !!vivaldi.utilities;
+      diagnostics.apis.notes = !!vivaldi.notes;
+      
+      if (vivaldi.workspaces) {
+        try {
+          const workspaces = await new Promise(resolve => vivaldi.workspaces.getAll(resolve));
+          diagnostics.workspaces = workspaces || [];
+        } catch (err) {
+          diagnostics.workspacesError = err.message;
+        }
+      }
+      
+      if (typeof chrome !== 'undefined' && chrome.tabs) {
+        try {
+          const tabs = await chrome.tabs.query({});
+          diagnostics.tabsCount = tabs.length;
+        } catch (err) {
+          diagnostics.tabsError = err.message;
+        }
+      }
+    }
+    
+    return { success: true, diagnostics };
+  }
+  
+  async function getWorkspaces() {
+    return new Promise((resolve) => {
+      vivaldi.workspaces.getAll((workspaces) => {
+        resolve({
+          success: true,
+          workspaces: workspaces || []
+        });
+      });
+    });
+  }
+  
+  async function createWorkspace(name) {
+    return new Promise((resolve, reject) => {
+      vivaldi.workspaces.create({ title: name }, (workspace) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else if (workspace && workspace.id) {
+          resolve({
+            success: true,
+            workspace: workspace
+          });
+        } else {
+          reject(new Error('Failed to create workspace'));
+        }
+      });
+    });
+  }
   
   async function organizeTabsToWorkspaces(categorizedTabs) {
     try {
