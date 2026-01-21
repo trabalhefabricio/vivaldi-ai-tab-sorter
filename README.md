@@ -8,7 +8,7 @@
   
   <p>Intelligently organize hundreds of tabs into Workspaces, Tab Stacks, or Windows using Google Gemini AI</p>
 
-  <a href="https://aistudio.google.com/app/apikey">Get Gemini API Key</a> | <a href="DOCUMENTATION.md">Full Documentation</a>
+  <a href="https://aistudio.google.com/app/apikey">Get Gemini API Key</a> | <a href="DOCUMENTATION.md">Full Documentation</a> | <a href="ALTERNATIVES.md">Alternatives to Extensions</a>
 
 </div>
 
@@ -24,6 +24,12 @@
 - 🔄 **Duplicate Removal**: Optional deduplication before sorting
 - 👀 **Preview First**: See the plan before applying changes
 - 💾 **Persistent Settings**: All settings saved automatically
+
+## ✨ Vivaldi Compatibility
+
+**Great news!** This extension works perfectly with Vivaldi because Vivaldi is built on Chromium and fully supports Chrome extensions. No special adaptations needed - it just works! 🎉
+
+**Wondering about alternatives to extensions?** See [ALTERNATIVES.md](ALTERNATIVES.md) for a comprehensive guide on other approaches (desktop apps, CLI tools, etc.) and why the extension approach is best for most users.
 
 ## 🚀 Quick Start
 
