@@ -8,7 +8,7 @@
   
   <p>Intelligently organize hundreds of tabs into Workspaces, Tab Stacks, or Windows using Google Gemini AI</p>
 
-  <a href="https://aistudio.google.com/app/apikey">Get Gemini API Key</a> | <a href="DOCUMENTATION.md">Full Documentation</a> | <a href="ALTERNATIVES.md">Alternatives to Extensions</a>
+  <a href="https://aistudio.google.com/app/apikey">Get Gemini API Key</a> | <a href="DOCUMENTATION.md">Full Documentation</a> | <a href="VIVALDI_NATIVE.md">Vivaldi-Native Extension</a> | <a href="ALTERNATIVES.md">Extension Alternatives</a>
 
 </div>
 
@@ -27,9 +27,16 @@
 
 ## ✨ Vivaldi Compatibility
 
-**Great news!** This extension works perfectly with Vivaldi because Vivaldi is built on Chromium and fully supports Chrome extensions. No special adaptations needed - it just works! 🎉
+**Important:** While Vivaldi is Chromium-based, it **does not fully support all Chrome extension APIs**. Specifically, `chrome.tabGroups` (Tab Stacks) is not available in Vivaldi.
 
-**Wondering about alternatives to extensions?** See [ALTERNATIVES.md](ALTERNATIVES.md) for a comprehensive guide on other approaches (desktop apps, CLI tools, etc.) and why the extension approach is best for most users.
+**What Works:**
+- ✅ Vivaldi Workspaces mode (with bridge script)
+- ✅ Separate Windows mode
+- ❌ Tab Stacks mode (Chrome API not supported)
+
+**Want better Vivaldi integration?** See [VIVALDI_NATIVE.md](VIVALDI_NATIVE.md) for information on creating a **pure Vivaldi-native implementation** that works better than Chrome extensions.
+
+**Wondering about alternatives?** See [ALTERNATIVES.md](ALTERNATIVES.md) for a comprehensive guide on other approaches (desktop apps, CLI tools, etc.).
 
 ## 🚀 Quick Start
 

@@ -1,59 +1,130 @@
 # Vivaldi Alternatives: Beyond Browser Extensions
 
-## TL;DR: Vivaldi IS Chromium-Based and Fully Supports Chrome Extensions! 🎉
+## ⚠️ Important: Vivaldi Extension API Limitations
 
-**Good news!** If you're worried that extensions are "too Chrome-based" for Vivaldi - **they're not**. Vivaldi is built on Chromium (the same foundation as Chrome) and has **excellent Chrome extension compatibility**. This extension works perfectly with Vivaldi.
+**Reality Check**: While Vivaldi is Chromium-based, it **does NOT fully support all Chrome extension APIs**. Specifically:
 
-However, if you're still interested in alternatives to traditional browser extensions, this document explores your options.
+- ❌ **`chrome.tabGroups` API is NOT supported** in Vivaldi (Tab Stacks mode won't work)
+- ❌ Some Chrome Extension APIs are incomplete or buggy in Vivaldi
+- ⚠️ **Extensions designed for Chrome often don't work properly in Vivaldi**
+
+### What DOES Work in Vivaldi?
+
+✅ **Vivaldi Workspaces Mode** (with bridge script):
+- Uses native Vivaldi APIs via the `ai_bridge.js` injection
+- This is the ONLY fully functional mode for this extension
+
+✅ **Separate Windows Mode**:
+- Uses standard `chrome.windows` API which Vivaldi supports
+- Creates separate windows for each category
+
+❌ **Tab Stacks Mode** (Chrome's Tab Groups):
+- Does NOT work - Vivaldi doesn't support `chrome.tabGroups` API
+- Vivaldi has its own tab stacking, but it's not accessible via Chrome extension APIs
+
+### The Problem with Extensions in Vivaldi
+
+While Vivaldi can load Chrome extensions, it doesn't implement all the APIs. This means:
+- Many Chrome extensions don't work or work partially
+- Vivaldi-specific features (Workspaces, native Tab Stacks) aren't accessible via standard Chrome APIs
+- **You need alternative approaches to work with Vivaldi's unique features**
+
+### This Extension's Current Approach
+
+This project uses a **hybrid approach** to work around Vivaldi's limitations:
+1. **Chrome Extension**: Provides the UI and basic tab management
+2. **Bridge Script**: Injects JavaScript into Vivaldi's UI to access native Vivaldi APIs
+
+This gives you:
+- ⚠️ Limited extension functionality (Windows mode only)
+- ✅ Full Vivaldi features via bridge script (Workspaces mode)
 
 ---
 
-## Why Chrome Extensions Work Great with Vivaldi
+## Why You NEED Alternatives for Vivaldi
 
-### Vivaldi's Foundation
-- **Built on Chromium**: Vivaldi uses the same browser engine as Chrome
-- **Full Extension Support**: Supports Chrome extensions via the Chrome Web Store and manual installation
-- **Enhanced Features**: Adds powerful features on top of Chrome (Workspaces, Tab Stacks, Notes, etc.)
+Given Vivaldi's incomplete Chrome extension API support, **alternatives are not just "nice to have" - they're necessary** for full functionality. Here are your real options:
 
-### This Extension's Approach
-This project uses a **hybrid approach** that combines:
-1. **Chrome Extension**: For standard tab management, UI, and API calls
-2. **Bridge Script**: To access Vivaldi-specific features (like Workspaces API)
+### Currently Working Solutions
 
-This gives you the best of both worlds:
-- ✅ Standard extension functionality (works across Chromium browsers)
-- ✅ Vivaldi-specific power features (Workspaces, advanced tab management)
+1. **Vivaldi UI Modifications (Recommended)** ✅
+   - Inject JavaScript directly into Vivaldi's UI
+   - Full access to Vivaldi's native APIs
+   - What this extension already does with `ai_bridge.js`
+   
+2. **Separate Windows Mode** ✅
+   - Uses basic `chrome.windows` API
+   - Works without any modifications
+   - Less powerful than Workspaces
 
 ---
 
-## Alternative Approaches (If You Really Want Them)
+## ⭐ Can We Make a Vivaldi-Specific Extension? YES!
 
-If you prefer NOT to use browser extensions, here are the alternatives:
+**This is the right question to ask!** Instead of trying to make Chrome extensions work in Vivaldi, you can create a **Vivaldi-native implementation**.
 
-### 1. Standalone Desktop Application
+See **[VIVALDI_NATIVE.md](VIVALDI_NATIVE.md)** for a comprehensive guide on creating Vivaldi-specific extensions that:
+- Use Vivaldi's native APIs directly (`vivaldi.workspaces`, `vivaldi.tabsPrivate`, etc.)
+- Don't rely on Chrome's incomplete extension APIs
+- Integrate natively into Vivaldi's UI
+- Work better with Vivaldi's unique features
+
+### Quick Summary of Options:
+
+1. **Pure Vivaldi Mod** ⭐ BEST FOR VIVALDI
+   - Single JavaScript file injected into Vivaldi
+   - Full access to ALL Vivaldi APIs
+   - Can add buttons to toolbar, create panels, etc.
+   - More powerful than current approach
+
+2. **Hybrid Extension + Bridge** (Current)
+   - What we have now
+   - Limited but easier to install
+
+3. **Standalone Desktop App**
+   - External program communicating with Vivaldi
+   - Most flexible architecture
+
+See [VIVALDI_NATIVE.md](VIVALDI_NATIVE.md) for full details, code examples, and implementation guide.
+
+---
+
+### Better Alternatives (Not Yet Implemented)
+
+If you prefer NOT to use the bridge script approach or need more flexibility, here are practical alternatives:
+
+### 1. Standalone Desktop Application ⭐ RECOMMENDED ALTERNATIVE
 
 **What it is**: A native desktop app that communicates with Vivaldi via the Chrome DevTools Protocol.
+
+**Why this is better for Vivaldi**:
+- ✅ No reliance on incomplete Chrome extension APIs
+- ✅ Can use Chrome DevTools Protocol (CDP) which Vivaldi fully supports
+- ✅ More control and doesn't break on Vivaldi updates
+- ✅ Can potentially access Vivaldi's internal APIs more reliably
 
 **How it would work**:
 ```
 Desktop App (Python/Electron/Go)
     ↓ (Chrome DevTools Protocol)
 Vivaldi Browser
+    ↓ (Internal APIs)
+Vivaldi Workspaces, Tabs, etc.
 ```
 
 **Pros**:
-- ✅ No need to install browser extension
+- ✅ Works around Vivaldi's incomplete extension API support
 - ✅ Can run independently of the browser
 - ✅ More control over system resources
 - ✅ Can integrate with other desktop tools
+- ✅ No need to modify Vivaldi's internal files
 
 **Cons**:
 - ❌ More complex to install and configure
 - ❌ Requires running an additional program
 - ❌ Need to manage updates separately
-- ❌ Cannot access Vivaldi-specific APIs (Workspaces, Tab Stacks)
 - ❌ Security concern: Need to enable remote debugging in Vivaldi
-- ❌ Less integrated user experience
+- ❌ May still not access Vivaldi-specific features directly
 
 **Example Setup**:
 ```bash
@@ -223,52 +294,107 @@ Vivaldi Tabs
 
 | Approach | Installation | Maintenance | Vivaldi Features | Privacy | Best For |
 |----------|-------------|-------------|------------------|---------|----------|
-| **Browser Extension** (Current) | Easy (5/5) | Easy (5/5) | Full (5/5) | Excellent - Local (5/5) | **Everyone** |
-| **+ Bridge Script** (Current) | Moderate (4/5) | Moderate (3/5) | Full (5/5) | Excellent - Local (5/5) | **Workspace users** |
-| Desktop App | Complex (2/5) | Complex (2/5) | Limited (2/5) | Excellent - Local (5/5) | Power users |
-| CLI Tool | Complex (2/5) | Moderate (3/5) | Limited (2/5) | Excellent - Local (5/5) | Scripters |
-| Userscript | Moderate (3/5) | Easy (4/5) | Minimal (1/5) | Good - Local (4/5) | Not suitable |
-| Web Service | Easy (4/5) | Easy (5/5) | Good (3/5) | Poor - Remote (2/5) | Users who want sync |
-| Vivaldi Mods | Very Complex (1/5) | Very Hard (1/5) | Full (5/5) | Excellent - Local (5/5) | Advanced users |
+| **Browser Extension Only** | Easy (5/5) | Easy (5/5) | ❌ Limited (1/5) | Excellent - Local (5/5) | **Not recommended for Vivaldi** |
+| **Extension + Bridge Script** (Current) | Moderate (4/5) | Moderate (3/5) | ✅ Full via Bridge (4/5) | Excellent - Local (5/5) | **Current best solution** |
+| **Desktop App** | Complex (2/5) | Easy (4/5) | Potentially Better (3/5) | Excellent - Local (5/5) | **Recommended alternative** |
+| **CLI Tool** | Complex (2/5) | Moderate (3/5) | Limited (2/5) | Excellent - Local (5/5) | Scripters |
+| **Userscript** | Moderate (3/5) | Easy (4/5) | ❌ Minimal (1/5) | Good - Local (4/5) | Not suitable |
+| **Web Service** | Easy (4/5) | Easy (5/5) | Good (3/5) | Poor - Remote (2/5) | Not recommended |
+| **Vivaldi Mods Only** | Very Complex (1/5) | Very Hard (1/5) | ✅ Full (5/5) | Excellent - Local (5/5) | Advanced users only |
 
 ---
 
-## Our Recommendation: Stick with the Extension
+## Our Recommendation: Choose Based on Your Needs
 
-### Why the Current Approach is Best:
+### Current Reality with Vivaldi:
 
-1. **✅ Vivaldi Compatibility**: Chrome extensions work perfectly with Vivaldi
-2. **✅ Easy Installation**: Simple load unpacked process
-3. **✅ Privacy**: Everything runs locally, API key stored securely
-4. **✅ Full Features**: Access to all browser APIs
-5. **✅ Easy Updates**: Just replace files or pull from git
-6. **✅ Vivaldi Workspaces**: Bridge script adds Vivaldi-specific features
-7. **✅ Standard Modes**: Tab Stacks and Windows work without any modifications
+**The Hybrid Approach (Extension + Bridge Script)** is currently the best compromise, but it has limitations:
 
-### The Hybrid Approach (Extension + Bridge)
+✅ **What Works:**
+- Vivaldi Workspaces mode (with bridge script)
+- Separate Windows mode
+- AI categorization and preview
 
-This project uses the best of both worlds:
+❌ **What Doesn't Work:**
+- Tab Stacks mode (Chrome's `tabGroups` API not supported in Vivaldi)
+- Some Chrome extension features may be buggy
+
+### For Most Users: Stick with the Current Hybrid Approach
+
+The current implementation (Extension + Bridge Script) provides:
+1. **✅ Easy Installation**: Load extension + inject one script
+2. **✅ Privacy**: Everything runs locally
+3. **✅ Vivaldi Workspaces**: Access via bridge script
+4. **✅ Windows Mode**: Standard API that works
+5. **⚠️ Limitations**: No Tab Stacks mode, may have bugs
+
+### If You Want Better Alternatives:
+
+**Consider a Desktop Application** if:
+- You're comfortable with command-line tools
+- You want more reliability than browser extensions provide
+- You need better integration with Vivaldi's features
+- You're willing to run a separate program
+
+**Why a desktop app could be better:**
+- Chrome DevTools Protocol is more stable than extension APIs
+- Could potentially interact with Vivaldi's internals more reliably
+- Doesn't depend on Vivaldi's incomplete extension API implementation
+- More future-proof as Vivaldi updates
+
+---
+
+## The Truth About Vivaldi and Extensions
+
+**Vivaldi is Chromium-based**, but that **doesn't mean Chrome extensions work perfectly**:
+
+### What Vivaldi Does Support:
+- ✅ Basic Chrome extension loading
+- ✅ `chrome.tabs` API (mostly)
+- ✅ `chrome.windows` API (mostly)
+- ✅ `chrome.storage` API
+- ✅ Basic extension framework
+
+### What Vivaldi Doesn't Support:
+- ❌ `chrome.tabGroups` API (Tab Groups)
+- ❌ Some newer Chrome extension APIs
+- ⚠️ Buggy or incomplete implementation of some APIs
+
+### Vivaldi's Native Features:
+Vivaldi has powerful features (Workspaces, Tab Stacking, Notes, etc.) that are **NOT accessible via standard Chrome extension APIs**. To use them, you must:
+1. Use Vivaldi's internal JavaScript APIs (requires injection)
+2. Use external tools (desktop apps, scripts)
+3. Manually organize tabs
+
+---
+
+## The Hybrid Approach (Current Implementation)
+
+This project uses a creative workaround for Vivaldi's limitations:
 
 ```
 ┌─────────────────────────────────────┐
 │  Chrome Extension                   │
-│  - Main UI and logic                │
-│  - Tab management                   │
+│  - UI and user input                │
 │  - AI API calls                     │
-│  - Tab Stacks & Windows modes       │
+│  - Tab enumeration                  │
+│  - Windows mode organization        │
 └─────────────┬───────────────────────┘
               │
               ↓ (chrome.storage communication)
 ┌─────────────────────────────────────┐
-│  Bridge Script (Optional)           │
-│  - Access Vivaldi Workspaces API    │
+│  Bridge Script (Injected)           │
+│  - Access vivaldi.workspaces API    │
 │  - Create/manage Workspaces         │
 │  - Move tabs between Workspaces     │
 └─────────────────────────────────────┘
 ```
 
-**Without bridge**: You still get Tab Stacks and Separate Windows modes
-**With bridge**: You unlock Vivaldi's powerful Workspaces feature
+**Limitations of this approach:**
+- Breaks after Vivaldi updates (must re-inject script)
+- Only provides access to Workspaces
+- Still relies on extension for UI and AI calls
+- Tab Stacks mode doesn't work (needs `tabGroups` API)
 
 ---
 

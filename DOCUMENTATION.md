@@ -2,14 +2,34 @@
 
 An intelligent browser extension specifically designed for Vivaldi that uses Google's Gemini AI to automatically organize your tabs into Workspaces, Tab Stacks, or separate Windows.
 
-## 🎯 Vivaldi Compatibility
+## 🎯 Vivaldi Compatibility - Important Information
 
-**This extension works perfectly with Vivaldi!** Vivaldi is built on Chromium and has full Chrome extension support. You can use this extension just like any Chrome extension.
+**Reality Check**: While Vivaldi is built on Chromium, it **does NOT fully support all Chrome extension APIs**.
 
-**Common misconception**: "Extensions are Chrome-based and won't work with Vivaldi."
-**Reality**: Vivaldi fully supports Chrome extensions. This is a Chromium extension that works great with Vivaldi.
+### What This Means:
 
-**Wondering about alternatives?** Check [ALTERNATIVES.md](ALTERNATIVES.md) for information about desktop apps, CLI tools, and other approaches - though the extension method is recommended for most users.
+❌ **Tab Stacks Mode Does NOT Work**
+- Vivaldi doesn't support Chrome's `chrome.tabGroups` API
+- Tab Stacks mode will fail or not work properly
+
+✅ **What DOES Work:**
+- **Vivaldi Workspaces mode** (with bridge script) - RECOMMENDED
+- **Separate Windows mode** (standard API)
+
+### Better Solution: Vivaldi-Native Implementation
+
+For better integration with Vivaldi, consider a **pure Vivaldi-native approach** instead of using Chrome extensions:
+
+👉 **See [VIVALDI_NATIVE.md](VIVALDI_NATIVE.md)** for:
+- Creating a true Vivaldi-specific implementation
+- Full access to Vivaldi's native APIs
+- Better integration with Vivaldi's UI
+- Code examples and implementation guide
+
+👉 **See [ALTERNATIVES.md](ALTERNATIVES.md)** for:
+- Why Chrome extensions have limitations in Vivaldi
+- Alternative approaches (desktop apps, CLI tools, pure mods)
+- Comparison of different implementation strategies
 
 ## ✨ Features
 
