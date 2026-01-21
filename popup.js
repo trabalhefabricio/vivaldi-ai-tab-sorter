@@ -247,6 +247,11 @@ class TabSorter {
     document.getElementById('analyzeBtn').addEventListener('click', () => this.analyze());
     document.getElementById('applyBtn').addEventListener('click', () => this.apply());
     
+    // Diagnostics button
+    document.getElementById('diagnosticsBtn').addEventListener('click', () => {
+      window.location.href = 'diagnostics.html';
+    });
+    
     // Reset counter button
     document.getElementById('resetCounter').addEventListener('click', () => {
       this.resetRequestCounter();
