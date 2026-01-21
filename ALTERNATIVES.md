@@ -63,29 +63,55 @@ Given Vivaldi's incomplete Chrome extension API support, **alternatives are not 
 
 **This is the right question to ask!** Instead of trying to make Chrome extensions work in Vivaldi, you can create a **Vivaldi-native implementation**.
 
-See **[VIVALDI_NATIVE.md](VIVALDI_NATIVE.md)** for a comprehensive guide on creating Vivaldi-specific extensions that:
-- Use Vivaldi's native APIs directly (`vivaldi.workspaces`, `vivaldi.tabsPrivate`, etc.)
-- Don't rely on Chrome's incomplete extension APIs
-- Integrate natively into Vivaldi's UI
-- Work better with Vivaldi's unique features
+### Option 1: Chrome Extension with Embedded Vivaldi API ⭐ RECOMMENDED
 
-### Quick Summary of Options:
+**The best solution:** A Chrome extension that **auto-injects its own Vivaldi API bridge**.
 
-1. **Pure Vivaldi Mod** ⭐ BEST FOR VIVALDI
-   - Single JavaScript file injected into Vivaldi
-   - Full access to ALL Vivaldi APIs
-   - Can add buttons to toolbar, create panels, etc.
-   - More powerful than current approach
+👉 **See [CHROME_EXTENSION_WITH_VIVALDI.md](CHROME_EXTENSION_WITH_VIVALDI.md)** for:
+- How to create a Chrome extension that includes Vivaldi API access
+- Auto-injecting bridge script (no manual file editing!)
+- Complete code examples for manifest, content script, and bridge
+- Benefits: Single installation, easier updates, standard extension distribution
 
-2. **Hybrid Extension + Bridge** (Current)
-   - What we have now
-   - Limited but easier to install
+**Key benefits:**
+- ✅ Install like a normal Chrome extension (no manual file editing)
+- ✅ Automatically injects Vivaldi API bridge when needed
+- ✅ Full access to `vivaldi.workspaces` and other Vivaldi APIs
+- ✅ Updates don't require re-editing system files
+- ✅ Self-contained package - all code in one extension
+
+### Option 2: Pure Vivaldi Mod (Advanced Users)
+
+See **[VIVALDI_NATIVE.md](VIVALDI_NATIVE.md)** for:
+- Creating a pure Vivaldi-specific implementation
+- Full access to Vivaldi's native APIs
+- Better integration with Vivaldi's UI
+- Code examples and implementation guide
+
+**Key benefits:**
+- ✅ Full access to ALL Vivaldi APIs directly
+- ✅ Can add buttons to toolbar, create panels, etc.
+- ✅ More powerful than extension approach
+- ❌ Requires manual installation (editing system files)
+- ❌ Breaks on Vivaldi updates
+
+### Quick Comparison:
+
+1. **Chrome Extension + Auto-Injecting Bridge** ⭐ RECOMMENDED
+   - Install like normal extension
+   - Auto-injects Vivaldi API access
+   - Easiest for users
+
+2. **Pure Vivaldi Mod**
+   - Most powerful
+   - Manual installation required
+   - Best for advanced users
 
 3. **Standalone Desktop App**
-   - External program communicating with Vivaldi
+   - External program
    - Most flexible architecture
 
-See [VIVALDI_NATIVE.md](VIVALDI_NATIVE.md) for full details, code examples, and implementation guide.
+**See [CHROME_EXTENSION_WITH_VIVALDI.md](CHROME_EXTENSION_WITH_VIVALDI.md) and [VIVALDI_NATIVE.md](VIVALDI_NATIVE.md) for full details, code examples, and implementation guides.**
 
 ---
 
