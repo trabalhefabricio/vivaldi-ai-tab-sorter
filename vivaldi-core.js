@@ -102,7 +102,7 @@
           break;
           
         case 'createWorkspace':
-          result = await createWorkspace(command.name);
+          result = await createWorkspaceCommand(command.name);
           break;
           
         case 'diagnostics':
@@ -197,15 +197,21 @@
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
         } else if (workspace && workspace.id) {
-          resolve({
-            success: true,
-            workspace: workspace
-          });
+          resolve(workspace.id);  // Return just the ID for organizeTabsToWorkspaces
         } else {
           reject(new Error('Failed to create workspace'));
         }
       });
     });
+  }
+  
+  // Wrapper for command handler that returns full object
+  async function createWorkspaceCommand(name) {
+    const workspaceId = await createWorkspace(name);
+    return {
+      success: true,
+      workspace: { id: workspaceId, title: name }
+    };
   }
   
   async function organizeTabsToWorkspaces(categorizedTabs) {
@@ -254,24 +260,6 @@
       console.error('Error organizing tabs to workspaces:', error);
       throw error;
     }
-  }
-  
-  function createWorkspace(name) {
-    return new Promise((resolve, reject) => {
-      try {
-        vivaldi.workspaces.create({ title: name }, (workspace) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else if (workspace && workspace.id) {
-            resolve(workspace.id);
-          } else {
-            reject(new Error('Failed to create workspace'));
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
   }
   
   function moveTabsToWorkspace(tabIds, workspaceId) {
