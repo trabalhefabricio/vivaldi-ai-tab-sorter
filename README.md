@@ -95,7 +95,7 @@ See [EXAMPLES.md](EXAMPLES.md) for real-world category setups and rule examples.
 bash validate.sh
 
 # Run unit tests (Node.js)
-node test/run_tests.js
+node test/parser.test.js
 ```
 
 See [TEST_RESULTS.md](TEST_RESULTS.md) for the latest test output and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something goes wrong.
