@@ -1043,7 +1043,10 @@ fi
 
     let arr;
     try { arr = JSON.parse(json); } catch (e) {
-      throw new Error('Invalid JSON in AI response: ' + e.message);
+      // Attempt to recover truncated JSON (e.g. token limit cut off the response)
+      const repaired = this._repairTruncatedJSON(json);
+      if (repaired) { arr = repaired; }
+      else { throw new Error('Invalid JSON in AI response: ' + e.message); }
     }
     if (!Array.isArray(arr)) throw new Error('AI response is not a JSON array.');
     if (!arr.length) throw new Error('AI returned an empty list.');
@@ -1062,6 +1065,26 @@ fi
       (cat && result[cat] ? result[cat] : result['Uncategorized']).push(t);
     }
     return result;
+  }
+
+  _repairTruncatedJSON(json) {
+    // Find the last complete object closing brace
+    const lastBrace = json.lastIndexOf('}');
+    if (lastBrace === -1) return null;
+
+    // Take everything up to and including the last '}'
+    let repaired = json.substring(0, lastBrace + 1).replace(/,\s*$/, '');
+
+    // Ensure it starts with '['
+    const start = repaired.indexOf('[');
+    if (start === -1) return null;
+    repaired = repaired.substring(start) + ']';
+
+    try {
+      const arr = JSON.parse(repaired);
+      if (Array.isArray(arr) && arr.length > 0) return arr;
+    } catch { /* repair failed */ }
+    return null;
   }
 
   async _callGemini(tabs) {

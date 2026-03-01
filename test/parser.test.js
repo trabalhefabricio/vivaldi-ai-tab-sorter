@@ -61,7 +61,10 @@ function parseResponse(text, origTabs, categories) {
 
   let arr;
   try { arr = JSON.parse(json); } catch (e) {
-    throw new Error('Invalid JSON in AI response: ' + e.message);
+    // Attempt to recover truncated JSON (e.g. token limit cut off the response)
+    const repaired = repairTruncatedJSON(json);
+    if (repaired) { arr = repaired; }
+    else { throw new Error('Invalid JSON in AI response: ' + e.message); }
   }
   if (!Array.isArray(arr)) throw new Error('AI response is not a JSON array.');
   if (!arr.length) throw new Error('AI returned an empty list.');
@@ -80,6 +83,26 @@ function parseResponse(text, origTabs, categories) {
     (cat && result[cat] ? result[cat] : result['Uncategorized']).push(t);
   }
   return result;
+}
+
+function repairTruncatedJSON(json) {
+  // Find the last complete object closing brace
+  const lastBrace = json.lastIndexOf('}');
+  if (lastBrace === -1) return null;
+
+  // Take everything up to and including the last '}'
+  let repaired = json.substring(0, lastBrace + 1).replace(/,\s*$/, '');
+
+  // Ensure it starts with '['
+  const start = repaired.indexOf('[');
+  if (start === -1) return null;
+  repaired = repaired.substring(start) + ']';
+
+  try {
+    const arr = JSON.parse(repaired);
+    if (Array.isArray(arr) && arr.length > 0) return arr;
+  } catch { /* repair failed */ }
+  return null;
 }
 
 // ── Test runner ─────────────────────────────────────────────────────────────
@@ -245,6 +268,53 @@ console.log('\n  ─ fence-wrapped with trailing whitespace');
   const result = parseResponse(input, sampleTabs, sampleCategories);
   assertEqual(result['Dev'].length, 1, 'Dev has 1 tab with trailing whitespace');
 }
+
+console.log('\n  ─ truncated JSON: unterminated string (reported bug)');
+{
+  // AI hit token limit mid-string — "Me  is cut off (should be "Media")
+  const input = '[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Me';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered from truncated JSON');
+  assertEqual(result['Email'].length, 1, 'Email recovered from truncated JSON');
+  assertEqual(result['Uncategorized'].length, 1, 'truncated tab → Uncategorized');
+}
+
+console.log('\n  ─ truncated JSON: cut off after complete objects with trailing comma');
+{
+  const input = '[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered from trailing comma truncation');
+  assertEqual(result['Email'].length, 1, 'Email recovered from trailing comma truncation');
+}
+
+console.log('\n  ─ truncated JSON: cut off mid-key');
+{
+  const input = '[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"categ';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered from mid-key truncation');
+  assertEqual(result['Email'].length, 1, 'Email recovered from mid-key truncation');
+}
+
+console.log('\n  ─ truncated JSON: fence-wrapped truncated response');
+{
+  const input = '```json\n[{"id":1,"category":"Dev"},{"id":2,"category":"Ema';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered from fence-wrapped truncation');
+}
+
+console.log('\n  ─ truncated JSON: only one complete object');
+{
+  const input = '[{"id":1,"category":"Dev"},{"id":2,"cat';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered with single complete object');
+}
+
+console.log('\n  ─ truncated JSON: no complete objects → still throws');
+assertThrows(
+  () => parseResponse('[{"id":1,"cate', sampleTabs, sampleCategories),
+  'Invalid JSON',
+  'throws when no complete objects can be recovered'
+);
 
 // ── Tests: buildPrompt ──────────────────────────────────────────────────────
 
