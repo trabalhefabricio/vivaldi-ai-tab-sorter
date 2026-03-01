@@ -4,7 +4,7 @@
 
   <h1>🚀 Vivaldi AI Tab Sorter</h1>
 
-  <p>Intelligently organize hundreds of tabs into Tab Stacks or Windows using Google Gemini AI</p>
+  <p>Intelligently organize hundreds of tabs into Workspaces, Tab Stacks, or Windows using Google Gemini AI</p>
   
   <a href="https://aistudio.google.com/app/apikey">Get Gemini API Key</a> | <a href="DOCUMENTATION.md">Documentation</a> | <a href="EXAMPLES.md">Examples</a>
 
@@ -15,7 +15,8 @@
 ## ✨ Features
 
 - 🤖 **AI‑Powered** – Google Gemini categorises tabs by title & URL
-- 📚 **Tab Stacks** – coloured, named groups in your current window
+- 🏆 **Vivaldi Workspaces** – create / reuse Workspaces per category (bridge required)
+- 📚 **Tab Stacks** – coloured, named tab groups in your current window
 - 🪟 **Separate Windows** – one window per category
 - 🎯 **Custom Rules** – steer the AI with your own logic
 - 🔄 **Duplicate Removal** – optional dedup before sorting
@@ -31,7 +32,7 @@
 3. Click the extension icon → paste API key → enter categories.
 4. **Analyze** → review → **Apply**.
 
-No bridge scripts or system file modifications required — works out of the box!
+> Tab Stacks and Windows modes work out of the box. For native Vivaldi Workspace mode, install the bridge script – see [INSTALL.md](INSTALL.md).
 
 ## 🔒 Privacy
 
