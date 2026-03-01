@@ -5,20 +5,92 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Test Tabs Generator – Vivaldi AI Tab Sorter</title>
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Segoe UI',system-ui,sans-serif;max-width:720px;margin:40px auto;padding:16px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
-    .card{background:rgba(255,255,255,.1);backdrop-filter:blur(12px);border-radius:14px;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.12)}
-    h1{text-align:center;font-size:22px;margin-bottom:6px}
-    .sub{text-align:center;opacity:.85;margin-bottom:22px;font-size:14px}
-    h2{font-size:15px;margin-bottom:10px}
-    .group{margin-bottom:18px;padding:14px;background:rgba(255,255,255,.06);border-radius:10px}
-    button{width:100%;padding:10px;margin:5px 0;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.18);color:#fff;transition:background .2s,transform .15s;font-family:inherit}
-    button:hover{background:rgba(255,255,255,.28);transform:translateY(-1px)}
-    .primary{background:linear-gradient(135deg,#f093fb,#f5576c)}
-    .primary:hover{box-shadow:0 6px 16px rgba(245,87,108,.35)}
-    #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none}
-    #toast.show{opacity:1}
-    .info{margin-top:16px;padding:14px;background:rgba(255,255,255,.08);border-radius:8px;font-size:12px;line-height:1.6}
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 16px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    }
+
+    h1 { text-align: center; font-size: 22px; margin-bottom: 6px; }
+    .sub { text-align: center; opacity: 0.85; margin-bottom: 22px; font-size: 14px; }
+    h2 { font-size: 15px; margin-bottom: 10px; }
+
+    .group {
+      margin-bottom: 18px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+      transition: background 0.2s, transform 0.15s;
+      font-family: inherit;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.28);
+      transform: translateY(-1px);
+    }
+
+    .primary {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+    }
+
+    .primary:hover {
+      box-shadow: 0 6px 16px rgba(245, 87, 108, 0.35);
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    #toast.show { opacity: 1; }
+
+    .info {
+      margin-top: 16px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body>
