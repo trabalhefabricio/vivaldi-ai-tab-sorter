@@ -1429,21 +1429,24 @@ fi
     const groups = [];
 
     if (this.stackScope === 'all') {
-      const wins = await chrome.windows.getAll({ populate: true });
+      // Pick the first *normal* browser window (skip popups, devtools, etc.)
+      const wins = await chrome.windows.getAll({ windowTypes: ['normal'] });
       if (!wins.length) throw new Error('No browser windows found.');
       targetWin = wins[0].id;
 
-      // Move tabs from other windows first
+      // Move tabs from other windows into the target window
       for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
         if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
         for (const t of tabs) {
           if (t.windowId !== targetWin) {
-            try { await chrome.tabs.move(t.id, { windowId: targetWin, index: -1 }); } catch {}
+            try { await chrome.tabs.move(t.id, { windowId: targetWin, index: -1 }); } catch (e) {
+              console.warn('Tab move failed (pinned/system?):', t.id, e.message);
+            }
           }
         }
       }
 
-      // Re-query
+      // Re-query to get fresh tab state after moves
       const fresh = await chrome.tabs.query({ windowId: targetWin });
       const map = new Map(fresh.map(t => [t.id, t]));
       for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
@@ -1452,11 +1455,19 @@ fi
         if (valid.length) groups.push({ cat, tabs: valid });
       }
     } else {
-      const cur = await chrome.windows.getCurrent();
+      // "Current Window" — use getLastFocused with normal type so the popup's
+      // own window (type "popup") is not selected instead of the browser window.
+      const cur = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
       targetWin = cur.id;
+
+      // Re-query live tabs in target window (the original tab objects from
+      // analysis may belong to multiple windows; filter by the browser window)
+      const liveTabs = await chrome.tabs.query({ windowId: targetWin });
+      const liveIds = new Set(liveTabs.map(t => t.id));
+
       for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
         if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
-        const inWin = tabs.filter(t => t.windowId === targetWin);
+        const inWin = tabs.filter(t => liveIds.has(t.id));
         if (inWin.length) groups.push({ cat, tabs: inWin });
       }
     }
@@ -1465,14 +1476,14 @@ fi
 
     let ci = 0;
     for (const { cat, tabs } of groups) {
-      // Verify tabs still exist
+      // Verify tabs still exist and collect valid IDs
       const ids = [];
       for (const t of tabs) {
         try { await chrome.tabs.get(t.id); ids.push(t.id); } catch {}
       }
       if (!ids.length) continue;
 
-      const gid = await chrome.tabs.group({ tabIds: ids });
+      const gid = await chrome.tabs.group({ createProperties: { windowId: targetWin }, tabIds: ids });
       await chrome.tabGroups.update(gid, {
         title: cat,
         color: GROUP_COLORS[ci % GROUP_COLORS.length],
@@ -1496,33 +1507,48 @@ fi
       // source window, the source window closes unexpectedly.
       const win = await chrome.windows.create({ focused: false });
 
-      try {
-        await chrome.tabs.move(tabs.map(t => t.id), { windowId: win.id, index: -1 });
-      } catch (e) {
-        console.error('Window mode tab move:', e);
-        // Some tabs may have been closed – skip gracefully
+      // Move tabs individually so one failure (pinned/system) doesn't block all
+      const movedIds = [];
+      for (const t of tabs) {
+        try {
+          await chrome.tabs.move(t.id, { windowId: win.id, index: -1 });
+          movedIds.push(t.id);
+        } catch (e) {
+          console.warn('Window mode: could not move tab', t.id, e.message);
+        }
       }
 
-      // Remove the blank tab that chrome.windows.create() opened
+      // Remove the blank tab that chrome.windows.create() opened.
+      // Also check Vivaldi-specific start page URLs.
       const winTabs = await chrome.tabs.query({ windowId: win.id });
       const blankTab = winTabs.find(t =>
         !t.url || t.url === '' || t.url === 'chrome://newtab/' || t.url === 'about:blank'
+        || t.url === 'vivaldi://startpage/' || t.url === 'vivaldi://newtab/'
       );
       if (blankTab && winTabs.length > 1) {
         try { await chrome.tabs.remove(blankTab.id); } catch {}
       }
 
+      // If no tabs were actually moved, close the empty window
+      if (!movedIds.length) {
+        try { await chrome.windows.remove(win.id); } catch {}
+        continue;
+      }
+
       // Group inside the new window
       const freshTabs = await chrome.tabs.query({ windowId: win.id });
-      if (freshTabs.length) {
+      const groupableIds = freshTabs.map(t => t.id);
+      if (groupableIds.length) {
         try {
-          const gid = await chrome.tabs.group({ tabIds: freshTabs.map(t => t.id) });
+          const gid = await chrome.tabs.group({ createProperties: { windowId: win.id }, tabIds: groupableIds });
           await chrome.tabGroups.update(gid, {
             title: cat,
             color: GROUP_COLORS[ci % GROUP_COLORS.length],
             collapsed: false,
           });
-        } catch {}
+        } catch (e) {
+          console.warn('Window mode: could not group tabs in', win.id, e.message);
+        }
       }
       ci++;
     }

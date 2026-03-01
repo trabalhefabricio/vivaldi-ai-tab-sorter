@@ -505,20 +505,20 @@ Vivaldi's hibernated (discarded) tabs have special quirks:
 `_applyStacks()` uses `chrome.tabs.group()` and `chrome.tabGroups.update()`:
 
 **Scope: Current Window:**
-1. Get current window via `chrome.windows.getCurrent()`.
-2. Filter analyzed tabs to those in this window.
-3. For each category with tabs: create a tab group, set title and color.
+1. Get the last focused *normal* browser window via `chrome.windows.getLastFocused({ windowTypes: ['normal'] })`. This avoids selecting the popup's own window (type `"popup"`).
+2. Re-query live tabs in that window and match by ID against the analyzed tabs.
+3. For each category with matching tabs: create a tab group, set title and color.
 
 **Scope: All Windows:**
-1. Get all windows via `chrome.windows.getAll({ populate: true })`.
-2. Pick `windows[0]` as the target window.
-3. Move ALL tabs from other windows into the target window first (`chrome.tabs.move(tabId, { windowId, index: -1 })`).
+1. Get all normal browser windows via `chrome.windows.getAll({ windowTypes: ['normal'] })`.
+2. Pick `windows[0]` as the target window (guaranteed to be a normal browser window, not the popup).
+3. Move tabs from other windows into the target window individually (`chrome.tabs.move(tabId, { windowId, index: -1 })`). Failures (pinned/system tabs) are logged and skipped.
 4. Re-query tabs in the target window to get fresh state.
 5. Then group as usual.
 
 **Grouping:**
 - Verify each tab still exists (`chrome.tabs.get()`) before grouping — tabs might have been closed.
-- `chrome.tabs.group({ tabIds: ids })` creates the group.
+- `chrome.tabs.group({ createProperties: { windowId: targetWin }, tabIds: ids })` creates the group, specifying the target window explicitly.
 - `chrome.tabGroups.update(gid, { title: categoryName, color: GROUP_COLORS[i], collapsed: false })`.
 
 **Color assignment:** `GROUP_COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan']`. Colors cycle through this array for successive categories.
@@ -554,9 +554,10 @@ See [Section 8](#8-background-service-worker-backgroundjs) for full details.
 
 For each category with tabs:
 1. Create a new window: `chrome.windows.create({ focused: false })`.
-2. Move all category tabs into it: `chrome.tabs.move(tabIds, { windowId, index: -1 })`.
-3. Remove the blank "New Tab" that `chrome.windows.create()` automatically opens (if it exists and there's more than 1 tab).
-4. Group all tabs in the new window and label with the category name + color.
+2. Move category tabs individually: `chrome.tabs.move(tabId, { windowId, index: -1 })`. Failures (pinned/system tabs) are logged and skipped.
+3. Remove the blank "New Tab" that `chrome.windows.create()` automatically opens. Detects both Chrome (`chrome://newtab/`) and Vivaldi (`vivaldi://startpage/`, `vivaldi://newtab/`) start pages.
+4. If no tabs could be moved, close the empty window and skip to the next category.
+5. Group all tabs in the new window and label with the category name + color, specifying `windowId` explicitly.
 
 **Important edge case:** The extension does NOT pass `tabId` to `chrome.windows.create()` because if that tab is the last in its source window, the source window closes unexpectedly.
 
@@ -968,6 +969,10 @@ function assertThrows(fn, msg) { ... }
 - **Tabs closed during analysis**: `_applyStacks()` verifies each tab still exists with `chrome.tabs.get()` before grouping.
 - **Empty-URL tabs and dedup**: tabs with no URL are never considered duplicates — they always pass through.
 - **Tab as last in window**: Window mode doesn't pass `tabId` to `chrome.windows.create()` to avoid closing the source window.
+- **Popup window context**: The extension popup opens in its own window (type `"popup"`). `chrome.windows.getCurrent()` returns this popup window, NOT the user's browser window. All modes use `chrome.windows.getLastFocused({ windowTypes: ['normal'] })` or `chrome.windows.getAll({ windowTypes: ['normal'] })` to target real browser windows.
+- **Pinned/system tabs**: Cannot be moved cross-window. Tab Stacks and Windows modes move tabs individually and skip failures, rather than failing the entire batch.
+- **Vivaldi start page**: `chrome.windows.create()` opens a blank tab. In Vivaldi this may be `vivaldi://startpage/` or `vivaldi://newtab/` rather than `chrome://newtab/`. Both are detected and removed.
+- **Empty windows**: If no tabs could be moved into a new window (all were pinned/system), the empty window is automatically closed.
 
 ### AI Response Edge Cases
 - **Markdown code fences**: stripped in pre-processing and multiple extraction strategies.
