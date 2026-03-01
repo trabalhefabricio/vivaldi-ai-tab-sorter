@@ -6,6 +6,8 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const GROUP_COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
 const RPM_INTERVAL_MS = 4000; // 15 RPM → one request every 4 s
 const DAILY_LIMIT = 1400;     // stay under Google's 1 500/day free‑tier cap
+const CHUNK_THRESHOLD = 100;  // call AI once if tab count ≤ this
+const CHUNK_SIZE = 80;        // tabs per AI request when chunking
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,9 +34,17 @@ class TabSorter {
     this.categories    = [];
     this.logicRules    = '';
     this.removeDups    = false;
-    this.mode          = 'workspaces';
+    this.mode          = 'stacks';
     this.stackScope    = 'current';
     this.selectedModel = 'gemini-2.0-flash';
+
+    this.includeUncategorized = false;
+    this.reassignExisting     = true;
+    this.workspaceScope       = 'all';
+    this.autoClose            = true;
+    this.provider             = 'gemini';
+    this.openaiKey            = '';
+    this.claudeKey            = '';
 
     this.analyzedTabs  = null;
     this.allTabs       = [];
@@ -51,6 +61,9 @@ class TabSorter {
     await this._loadSettings();
     await this._loadTracking();
     this._bind();
+    this._detectBrowser();
+    await this._checkVivaldiVersion();
+    await this._autoFetchModels();
   }
 
   // ── Persistence ──────────────────────────────────────────────────────────
@@ -60,6 +73,8 @@ class TabSorter {
       const d = await chrome.storage.local.get([
         'apiKey', 'categories', 'logicRules',
         'removeDuplicates', 'mode', 'stackScope', 'selectedModel',
+        'includeUncategorized', 'reassignExisting', 'workspaceScope',
+        'autoClose', 'provider', 'openaiKey', 'claudeKey',
       ]);
       if (d.apiKey)            { $('apiKey').value = d.apiKey;            this.apiKey = d.apiKey; }
       if (d.selectedModel)     { $('modelSelect').value = d.selectedModel; this.selectedModel = d.selectedModel; }
@@ -71,6 +86,13 @@ class TabSorter {
         const r = $('mode' + d.mode.charAt(0).toUpperCase() + d.mode.slice(1));
         if (r) { r.checked = true; this.mode = d.mode; }
       }
+      if (d.includeUncategorized != null) { const el = $('includeUncategorized'); if (el) el.checked = d.includeUncategorized; this.includeUncategorized = d.includeUncategorized; }
+      if (d.reassignExisting != null) { const el = $('reassignExisting'); if (el) el.checked = d.reassignExisting; this.reassignExisting = d.reassignExisting; }
+      if (d.workspaceScope) { const el = $(d.workspaceScope === 'all' ? 'workspaceScopeAll' : 'workspaceScopeCurrent'); if (el) el.checked = true; this.workspaceScope = d.workspaceScope; }
+      if (d.autoClose != null) { const el = $('autoClose'); if (el) el.checked = d.autoClose; this.autoClose = d.autoClose; }
+      if (d.provider) { const el = $('providerSelect'); if (el) el.value = d.provider; this.provider = d.provider; }
+      if (d.openaiKey) { const el = $('openaiKey'); if (el) el.value = d.openaiKey; this.openaiKey = d.openaiKey; }
+      if (d.claudeKey) { const el = $('claudeKey'); if (el) el.value = d.claudeKey; this.claudeKey = d.claudeKey; }
       this._refreshUsage();
     } catch (e) { console.error('loadSettings:', e); }
   }
@@ -85,6 +107,13 @@ class TabSorter {
         mode: this.mode,
         stackScope: this.stackScope,
         selectedModel: this.selectedModel,
+        includeUncategorized: this.includeUncategorized,
+        reassignExisting: this.reassignExisting,
+        workspaceScope: this.workspaceScope,
+        autoClose: this.autoClose,
+        provider: this.provider,
+        openaiKey: this.openaiKey,
+        claudeKey: this.claudeKey,
       });
     } catch (e) { console.error('saveSettings:', e); }
   }
@@ -168,11 +197,15 @@ class TabSorter {
       r.addEventListener('change', e => {
         this.mode = e.target.value;
         $('stackOptionsSection').style.display = this.mode === 'stacks' ? '' : 'none';
+        const wsScope = $('workspaceScopeSection');
+        if (wsScope) wsScope.style.display = this.mode === 'workspaces' ? '' : 'none';
         this._updateWorkspaceSetup();
         this._save();
       });
     });
     $('stackOptionsSection').style.display = this.mode === 'stacks' ? '' : 'none';
+    const wsScope = $('workspaceScopeSection');
+    if (wsScope) wsScope.style.display = this.mode === 'workspaces' ? '' : 'none';
 
     document.querySelectorAll('input[name="stackScope"]').forEach(r => {
       r.addEventListener('change', e => { this.stackScope = e.target.value; this._save(); });
@@ -185,6 +218,51 @@ class TabSorter {
     $('checkBridgeBtn').addEventListener('click', () => this._checkBridge());
     $('downloadSetupBtn').addEventListener('click', () => this._downloadSetup());
 
+    const includeUncat = $('includeUncategorized');
+    if (includeUncat) includeUncat.addEventListener('change', e => {
+      this.includeUncategorized = e.target.checked;
+      this._save();
+    });
+
+    const reassignEl = $('reassignExisting');
+    if (reassignEl) reassignEl.addEventListener('change', e => {
+      this.reassignExisting = e.target.checked;
+      this._save();
+    });
+
+    const autoCloseEl = $('autoClose');
+    if (autoCloseEl) autoCloseEl.addEventListener('change', e => {
+      this.autoClose = e.target.checked;
+      this._save();
+    });
+
+    document.querySelectorAll('input[name="workspaceScope"]').forEach(r => {
+      r.addEventListener('change', e => { this.workspaceScope = e.target.value; this._save(); });
+    });
+
+    const providerEl = $('providerSelect');
+    if (providerEl) providerEl.addEventListener('change', e => {
+      this.provider = e.target.value;
+      this._updateProviderFields();
+      this._save();
+    });
+
+    const openaiKeyEl = $('openaiKey');
+    if (openaiKeyEl) openaiKeyEl.addEventListener('input', e => {
+      this.openaiKey = e.target.value.trim();
+      this._save();
+    });
+
+    const claudeKeyEl = $('claudeKey');
+    if (claudeKeyEl) claudeKeyEl.addEventListener('input', e => {
+      this.claudeKey = e.target.value.trim();
+      this._save();
+    });
+
+    const copyBtn = $('copyCommandsBtn');
+    if (copyBtn) copyBtn.addEventListener('click', () => this._copyCommands());
+
+    this._updateProviderFields();
     this._updateWorkspaceSetup();
   }
 
@@ -230,6 +308,76 @@ class TabSorter {
     el.appendChild(footer);
 
     el.classList.add('visible');
+  }
+
+  // ── Browser Detection ────────────────────────────────────────────────────
+
+  _detectBrowser() {
+    this.browser = /Vivaldi/.test(navigator.userAgent) ? 'vivaldi' : 'chrome';
+    if (this.browser === 'chrome') {
+      const stackLabel = document.querySelector('label[for="modeStacks"]');
+      if (stackLabel) stackLabel.textContent = stackLabel.textContent.replace('Tab Stacks', 'Tab Groups');
+      const wsLabel = document.querySelector('label[for="modeWorkspaces"]');
+      if (wsLabel && !wsLabel.textContent.includes('Vivaldi only')) {
+        wsLabel.textContent = wsLabel.textContent + ' (Vivaldi only)';
+      }
+    }
+  }
+
+  async _checkVivaldiVersion() {
+    const match = navigator.userAgent.match(/Vivaldi\/([\d.]+)/);
+    if (!match) return;
+    const version = match[1];
+    try {
+      const d = await chrome.storage.local.get(['lastKnownVivaldiVersion']);
+      if (d.lastKnownVivaldiVersion && d.lastKnownVivaldiVersion !== version) {
+        this._status('⚠️ Vivaldi updated – you may need to re-inject the bridge script.', 'info');
+      }
+      await chrome.storage.local.set({ lastKnownVivaldiVersion: version });
+    } catch (e) { console.error('checkVivaldiVersion:', e); }
+  }
+
+  // ── Provider Fields ─────────────────────────────────────────────────────
+
+  _updateProviderFields() {
+    const geminiSection = $('geminiKeySection');
+    const openaiSection = $('openaiKeySection');
+    const claudeSection = $('claudeKeySection');
+    if (geminiSection) geminiSection.style.display = this.provider === 'gemini' ? '' : 'none';
+    if (openaiSection) openaiSection.style.display = this.provider === 'openai' ? '' : 'none';
+    if (claudeSection) claudeSection.style.display = this.provider === 'claude' ? '' : 'none';
+  }
+
+  // ── Copy Commands ───────────────────────────────────────────────────────
+
+  _copyCommands() {
+    const ua = navigator.userAgent;
+    const isWin = /Win/.test(ua);
+    const isMac = /Mac/.test(ua);
+    let cmd;
+    if (isWin) {
+      cmd = 'powershell -ExecutionPolicy Bypass -File install_bridge.ps1';
+    } else if (isMac) {
+      cmd = 'chmod +x install_bridge.sh && ./install_bridge.sh';
+    } else {
+      cmd = 'chmod +x install_bridge.sh && sudo ./install_bridge.sh';
+    }
+    navigator.clipboard.writeText(cmd).then(
+      () => this._status('✓ Command copied to clipboard!', 'success'),
+      () => this._status('Failed to copy to clipboard.', 'error'),
+    );
+  }
+
+  // ── Auto-fetch Models ───────────────────────────────────────────────────
+
+  async _autoFetchModels() {
+    try {
+      const d = await chrome.storage.local.get(['modelsFetched']);
+      if (!d.modelsFetched && this.apiKey && this.provider === 'gemini') {
+        await this._fetchModels();
+        await chrome.storage.local.set({ modelsFetched: true });
+      }
+    } catch (e) { console.error('autoFetchModels:', e); }
   }
 
   // ── Workspace Setup ──────────────────────────────────────────────────────
@@ -621,14 +769,99 @@ echo "Done! Restart Vivaldi to activate the bridge."
     throw lastErr || new Error('Failed after retries.');
   }
 
+  // ── Multi-Provider AI ───────────────────────────────────────────────────
+
+  async _callAI(tabs) {
+    if (this.provider === 'gemini') return this._callGemini(tabs);
+    const info = tabs.map(t => ({ id: t.id, title: t.title, url: t.url }));
+    const prompt = this._buildPrompt(info);
+    let text;
+    if (this.provider === 'openai') text = await this._callOpenAI(prompt);
+    else if (this.provider === 'claude') text = await this._callClaude(prompt);
+    else throw new Error('Unknown AI provider: ' + this.provider);
+    if (!text) throw new Error('Empty response from AI.');
+    await this._bumpCount();
+    return this._parseResponse(text, tabs);
+  }
+
+  async _callAIChunked(tabs) {
+    if (tabs.length <= CHUNK_THRESHOLD) return this._callAI(tabs);
+    const chunks = [];
+    for (let i = 0; i < tabs.length; i += CHUNK_SIZE) {
+      chunks.push(tabs.slice(i, i + CHUNK_SIZE));
+    }
+    const merged = {};
+    for (const c of this.categories) merged[c] = [];
+    merged['Uncategorized'] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      this._status(`Analyzing chunk ${i + 1}/${chunks.length}…`, 'info');
+      const result = await this._callAI(chunks[i]);
+      for (const [cat, catTabs] of Object.entries(result)) {
+        if (!merged[cat]) merged[cat] = [];
+        merged[cat].push(...catTabs);
+      }
+    }
+    return merged;
+  }
+
+  async _callOpenAI(prompt) {
+    const url = 'https://api.openai.com/v1/chat/completions';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.openaiKey}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error('OpenAI API error: ' + (err.error?.message || res.statusText));
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content;
+  }
+
+  async _callClaude(prompt) {
+    const url = 'https://api.anthropic.com/v1/messages';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.claudeKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8192,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error('Claude API error: ' + (err.error?.message || res.statusText));
+    }
+    const data = await res.json();
+    return data.content?.[0]?.text;
+  }
+
   // ── Analyze Flow ─────────────────────────────────────────────────────────
 
   async _analyze() {
     try {
-      if (!this.apiKey.trim()) { this._status('Enter your Gemini API key.', 'error'); return; }
-      const key = this.apiKey.trim();
-      if (!key.startsWith('AI') || key.length < 35) {
-        this._status('Invalid API key format.', 'error'); return;
+      const activeKey = this.provider === 'openai' ? this.openaiKey
+        : this.provider === 'claude' ? this.claudeKey
+        : this.apiKey;
+      const providerName = this.provider === 'gemini' ? 'Gemini'
+        : this.provider === 'openai' ? 'OpenAI' : 'Claude';
+      if (!activeKey.trim()) { this._status(`Enter your ${providerName} API key.`, 'error'); return; }
+      if (this.provider === 'gemini') {
+        const key = activeKey.trim();
+        if (!key.startsWith('AI') || key.length < 35) {
+          this._status('Invalid Gemini API key format.', 'error'); return;
+        }
       }
       if (!this.categories.length) { this._status('Enter at least one category.', 'error'); return; }
       if (this.reqCount >= DAILY_LIMIT) {
@@ -659,7 +892,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
         this._status(`Analyzing ${tabs.length} tabs… (request ${this.reqCount + 1}/${DAILY_LIMIT})`, 'info');
       }
 
-      this.analyzedTabs = await this._callGemini(tabs);
+      this.analyzedTabs = await this._callAIChunked(tabs);
       this._showPreview(this.analyzedTabs);
       $('applyBtn').disabled = false;
       this._refreshUsage();
@@ -685,7 +918,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
       else await this._applyWindows();
 
       this._status('✅ Tabs sorted!', 'success');
-      setTimeout(() => window.close(), 2000);
+      if (this.autoClose) setTimeout(() => window.close(), 2000);
     } catch (e) {
       console.error('apply:', e);
       this._status(sanitizeErrorMessage(e.message), 'error');
@@ -699,6 +932,9 @@ echo "Done! Restart Vivaldi to activate the bridge."
     const resp = await chrome.runtime.sendMessage({
       action: 'organizeToWorkspaces',
       categorizedTabs: this.analyzedTabs,
+      scope: this.workspaceScope,
+      includeUncategorized: this.includeUncategorized,
+      reassignExisting: this.reassignExisting,
     });
     if (!resp?.success) throw new Error(resp?.error || 'Workspace organization failed.');
   }
@@ -714,7 +950,8 @@ echo "Done! Restart Vivaldi to activate the bridge."
       targetWin = wins[0].id;
 
       // Move tabs from other windows first
-      for (const [, tabs] of Object.entries(this.analyzedTabs)) {
+      for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
+        if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
         for (const t of tabs) {
           if (t.windowId !== targetWin) {
             try { await chrome.tabs.move(t.id, { windowId: targetWin, index: -1 }); } catch {}
@@ -726,6 +963,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
       const fresh = await chrome.tabs.query({ windowId: targetWin });
       const map = new Map(fresh.map(t => [t.id, t]));
       for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
+        if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
         const valid = tabs.map(t => map.get(t.id)).filter(Boolean);
         if (valid.length) groups.push({ cat, tabs: valid });
       }
@@ -733,6 +971,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
       const cur = await chrome.windows.getCurrent();
       targetWin = cur.id;
       for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
+        if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
         const inWin = tabs.filter(t => t.windowId === targetWin);
         if (inWin.length) groups.push({ cat, tabs: inWin });
       }
@@ -766,6 +1005,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
     let ci = 0;
     for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
       if (!tabs.length) continue;
+      if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
 
       const win = await chrome.windows.create({ tabId: tabs[0].id, focused: false });
 
