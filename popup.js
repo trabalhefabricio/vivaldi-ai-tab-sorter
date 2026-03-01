@@ -980,13 +980,16 @@ fi
 
   async _getAllTabs() {
     const tabs = await chrome.tabs.query({});
-    return tabs.map(t => ({
-      id: t.id,
-      title: t.title || this._titleFromUrl(t.url || t.pendingUrl || ''),
-      url: t.url || t.pendingUrl || '',
-      windowId: t.windowId,
-      index: t.index,
-    }));
+    return tabs.map(t => {
+      const url = t.url || t.pendingUrl || '';
+      return {
+        id: t.id,
+        title: t.title || this._titleFromUrl(url),
+        url,
+        windowId: t.windowId,
+        index: t.index,
+      };
+    });
   }
 
   /**
@@ -998,14 +1001,15 @@ fi
     try {
       const u = new URL(url);
       // Use the hostname, stripping "www."
-      let name = u.hostname.replace(/^www\./, '');
+      const host = u.hostname.replace(/^www\./, '');
+      let name = host;
       // Append a readable path when it carries meaning
       if (u.pathname && u.pathname !== '/') {
         const path = decodeURIComponent(u.pathname)
           .replace(/\/$/, '')
           .replace(/[/_-]+/g, ' ')
           .trim();
-        if (path) name += ' – ' + path;
+        if (path) name = name ? name + ' – ' + path : path;
       }
       return name || url;
     } catch {

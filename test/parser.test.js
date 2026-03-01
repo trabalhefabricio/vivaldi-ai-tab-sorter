@@ -552,13 +552,14 @@ function titleFromUrl(url) {
   if (!url) return '';
   try {
     const u = new URL(url);
-    let name = u.hostname.replace(/^www\./, '');
+    const host = u.hostname.replace(/^www\./, '');
+    let name = host;
     if (u.pathname && u.pathname !== '/') {
       const path = decodeURIComponent(u.pathname)
         .replace(/\/$/, '')
         .replace(/[/_-]+/g, ' ')
         .trim();
-      if (path) name += ' – ' + path;
+      if (path) name = name ? name + ' – ' + path : path;
     }
     return name || url;
   } catch {
@@ -581,7 +582,7 @@ console.log('\n  ─ edge cases');
 
 {
   assertEqual(titleFromUrl(''), '', 'empty URL returns empty');
-  assertEqual(titleFromUrl('about:blank'), ' – blank', 'about:blank derives from pathname');
+  assertEqual(titleFromUrl('about:blank'), 'blank', 'about:blank derives path only (no hostname)');
   assertEqual(titleFromUrl('chrome://extensions/'), 'extensions', 'chrome:// uses hostname');
   assertEqual(titleFromUrl('https://www.fiverr.com/categories/programming-tech'),
     'fiverr.com – categories programming tech', 'Fiverr path is readable');
