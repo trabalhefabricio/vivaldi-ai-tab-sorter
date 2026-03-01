@@ -1036,7 +1036,7 @@ fi
     return [
       `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
       '\nUse the EXACT category names listed above. Every tab MUST be assigned to one of these categories; do not skip any tab.',
-      '\nUse BOTH the tab title AND the URL domain to determine the best category. The domain name is often the strongest signal (e.g. fiverr.com → work/gigs, github.com → development, youtube.com → media).',
+      '\nUse BOTH the tab title and the URL to determine the best category. The title describes the specific content (e.g. a YouTube video about music production vs. one about gaming). The URL/domain shows the site. Both matter equally — same domain can belong to different categories depending on the title.',
       '\nAlways pick the closest matching category. Never leave a tab uncategorized if any category is even a partial match.',
       rules,
       '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),

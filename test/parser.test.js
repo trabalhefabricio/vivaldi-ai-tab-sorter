@@ -22,7 +22,7 @@ function buildPrompt(categories, logicRules, tabsInfo) {
   return [
     `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
     '\nUse the EXACT category names listed above. Every tab MUST be assigned to one of these categories; do not skip any tab.',
-    '\nUse BOTH the tab title AND the URL domain to determine the best category. The domain name is often the strongest signal (e.g. fiverr.com → work/gigs, github.com → development, youtube.com → media).',
+    '\nUse BOTH the tab title and the URL to determine the best category. The title describes the specific content (e.g. a YouTube video about music production vs. one about gaming). The URL/domain shows the site. Both matter equally — same domain can belong to different categories depending on the title.',
     '\nAlways pick the closest matching category. Never leave a tab uncategorized if any category is even a partial match.',
     rules,
     '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
@@ -398,8 +398,8 @@ console.log('\n📋 buildPrompt');
   assert(prompt.includes('Dev, Email'), 'includes categories');
   assert(prompt.includes('"id": 1'), 'includes tab data');
   assert(!prompt.includes('Custom rules'), 'no custom rules when empty');
-  assert(prompt.includes('BOTH the tab title AND the URL domain'), 'instructs to use title and URL');
-  assert(prompt.includes('domain name is often the strongest signal'), 'URL domain is key signal');
+  assert(prompt.includes('BOTH the tab title and the URL'), 'instructs to use title and URL');
+  assert(prompt.includes('Both matter equally'), 'title and URL weighted equally');
   assert(prompt.includes('closest matching category'), 'instructs closest match');
   assert(prompt.includes('EXACT category names'), 'instructs exact category names');
   assert(prompt.includes('do not skip any tab'), 'instructs not to skip tabs');
