@@ -103,7 +103,8 @@ async function organizeWorkspaces(categorized, scope = 'all', includeUncategoriz
 
 // Direct Vivaldi API (works if vivaldi.workspaces or vivaldi.workspacesPrivate is exposed)
 async function organizeViaDirect(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true, wsApi = null) {
-  const api = wsApi || vivaldi.workspaces;
+  const api = wsApi || (typeof vivaldi !== 'undefined' && vivaldi.workspaces);
+  if (!api) throw new Error('No workspace API available');
   const getAll = () => new Promise((resolve, reject) => {
     api.getAll(ws => {
       if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
