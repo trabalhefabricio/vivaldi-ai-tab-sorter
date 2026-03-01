@@ -467,16 +467,16 @@
       <label class="field-label" for="providerSelect">AI Provider</label>
       <div class="select-wrap">
       <select id="providerSelect">
-        <option value="gemini">🦊 Fox (Google Gemini)</option>
-        <option value="openai">🦉 Owl (OpenAI GPT)</option>
-        <option value="claude">🐬 Dolphin (Anthropic Claude)</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="openai">OpenAI GPT</option>
+        <option value="claude">Anthropic Claude</option>
       </select>
       </div>
     </div>
 
-    <!-- Gemini API Key — codename Fox -->
+    <!-- Gemini API Key -->
     <div id="geminiKeySection" class="field">
-      <label class="field-label" for="apiKey">🦊 Fox Key <small>(Gemini)</small> <span id="geminiKeyStatus" class="key-status"></span></label>
+      <label class="field-label" for="apiKey">Gemini API Key <span id="geminiKeyStatus" class="key-status"></span></label>
       <div class="key-row">
         <input type="password" id="apiKey" placeholder="Paste your Gemini API key">
         <button type="button" class="toggle-vis" data-target="apiKey" title="Show/hide key">👁</button>
@@ -484,9 +484,9 @@
       <div class="hint">Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a></div>
     </div>
 
-    <!-- OpenAI API Key — codename Owl -->
+    <!-- OpenAI API Key -->
     <div id="openaiKeySection" class="field" style="display:none;">
-      <label class="field-label" for="openaiKey">🦉 Owl Key <small>(OpenAI)</small> <span id="openaiKeyStatus" class="key-status"></span></label>
+      <label class="field-label" for="openaiKey">OpenAI API Key <span id="openaiKeyStatus" class="key-status"></span></label>
       <div class="key-row">
         <input type="password" id="openaiKey" placeholder="Paste your OpenAI API key">
         <button type="button" class="toggle-vis" data-target="openaiKey" title="Show/hide key">👁</button>
@@ -494,9 +494,9 @@
       <div class="hint">Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI Platform</a></div>
     </div>
 
-    <!-- Claude API Key — codename Dolphin -->
+    <!-- Claude API Key -->
     <div id="claudeKeySection" class="field" style="display:none;">
-      <label class="field-label" for="claudeKey">🐬 Dolphin Key <small>(Claude)</small> <span id="claudeKeyStatus" class="key-status"></span></label>
+      <label class="field-label" for="claudeKey">Claude API Key <span id="claudeKeyStatus" class="key-status"></span></label>
       <div class="key-row">
         <input type="password" id="claudeKey" placeholder="Paste your Anthropic API key">
         <button type="button" class="toggle-vis" data-target="claudeKey" title="Show/hide key">👁</button>

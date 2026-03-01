@@ -21,6 +21,7 @@ function buildPrompt(categories, logicRules, tabsInfo) {
   const rules = logicRules ? `\n\nCustom rules:\n${logicRules}` : '';
   return [
     `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
+    '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
     rules,
     '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
     '\nReturn ONLY a JSON array: [{"id":<tab_id>,"category":"<Category>"},…]',
@@ -28,15 +29,21 @@ function buildPrompt(categories, logicRules, tabsInfo) {
 }
 
 function parseResponse(text, origTabs, categories) {
+  // Pre-process: strip outer markdown code fence wrapping
+  let cleaned = text.trim();
+  const fenceRe = /^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```\s*$/;
+  const fenceMatch = cleaned.match(fenceRe);
+  if (fenceMatch) cleaned = fenceMatch[1].trim();
+
   let json = null;
 
-  // Strategy 1 – markdown code block
-  const md = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+  // Strategy 1 – markdown code block (for inner fences)
+  const md = cleaned.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
   if (md) json = md[1];
 
   // Strategy 2 – backtick content without regex match
-  if (!json && text.includes('```')) {
-    const parts = text.split('```');
+  if (!json && cleaned.includes('```')) {
+    const parts = cleaned.split('```');
     if (parts.length >= 3) {
       json = parts[1].replace(/^json\s*/i, '').trim();
     }
@@ -44,18 +51,21 @@ function parseResponse(text, origTabs, categories) {
 
   // Strategy 3 – greedy array extraction
   if (!json) {
-    const m = text.match(/\[[\s\S]*\]/);
+    const m = cleaned.match(/\[[\s\S]*\]/);
     if (m) json = m[0];
   }
 
-  // Strategy 4 – entire text
-  if (!json) json = text.trim();
+  // Strategy 4 – entire cleaned text
+  if (!json) json = cleaned;
 
   if (!json) throw new Error('Could not find JSON in AI response.');
 
   let arr;
   try { arr = JSON.parse(json); } catch (e) {
-    throw new Error('Invalid JSON in AI response: ' + e.message);
+    // Attempt to recover truncated JSON (e.g. token limit cut off the response)
+    const repaired = repairTruncatedJSON(json);
+    if (repaired) { arr = repaired; }
+    else { throw new Error('Invalid JSON in AI response: ' + e.message); }
   }
   if (!Array.isArray(arr)) throw new Error('AI response is not a JSON array.');
   if (!arr.length) throw new Error('AI returned an empty list.');
@@ -74,6 +84,26 @@ function parseResponse(text, origTabs, categories) {
     (cat && result[cat] ? result[cat] : result['Uncategorized']).push(t);
   }
   return result;
+}
+
+function repairTruncatedJSON(json) {
+  // Find the last complete object closing brace
+  const lastBrace = json.lastIndexOf('}');
+  if (lastBrace === -1) return null;
+
+  // Take everything up to and including the last '}'
+  let repaired = json.substring(0, lastBrace + 1).replace(/,\s*$/, '');
+
+  // Ensure it starts with '['
+  const start = repaired.indexOf('[');
+  if (start === -1) return null;
+  repaired = repaired.substring(start) + ']';
+
+  try {
+    const arr = JSON.parse(repaired);
+    if (Array.isArray(arr) && arr.length > 0) return arr;
+  } catch { /* repair failed */ }
+  return null;
 }
 
 // ── Test runner ─────────────────────────────────────────────────────────────
@@ -209,6 +239,84 @@ assertThrows(
   'throws on non-array JSON'
 );
 
+console.log('\n  ─ entire response wrapped in ```json fence (reported bug)');
+{
+  const input = '```json\n[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Media"}]\n```';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev has 1 tab from fence-wrapped response');
+  assertEqual(result['Email'].length, 1, 'Email has 1 tab from fence-wrapped response');
+  assertEqual(result['Media'].length, 1, 'Media has 1 tab from fence-wrapped response');
+}
+
+console.log('\n  ─ fence-wrapped multiline JSON');
+{
+  const input = '```json\n[\n  {"id":1,"category":"Dev"},\n  {"id":2,"category":"Email"},\n  {"id":3,"category":"Media"}\n]\n```';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev has 1 tab from multiline fence');
+  assertEqual(result['Media'].length, 1, 'Media has 1 tab from multiline fence');
+}
+
+console.log('\n  ─ fence-wrapped with no json marker');
+{
+  const input = '```\n[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Media"}]\n```';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev has 1 tab from plain fence');
+}
+
+console.log('\n  ─ fence-wrapped with trailing whitespace');
+{
+  const input = '```json\n[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Media"}]\n```\n  ';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev has 1 tab with trailing whitespace');
+}
+
+console.log('\n  ─ truncated JSON: unterminated string (reported bug)');
+{
+  // AI hit token limit mid-string — "Me" is cut off (should be "Media")
+  const input = '[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Me';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered from truncated JSON');
+  assertEqual(result['Email'].length, 1, 'Email recovered from truncated JSON');
+  assertEqual(result['Uncategorized'].length, 1, 'truncated tab → Uncategorized');
+}
+
+console.log('\n  ─ truncated JSON: cut off after complete objects with trailing comma');
+{
+  const input = '[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered from trailing comma truncation');
+  assertEqual(result['Email'].length, 1, 'Email recovered from trailing comma truncation');
+}
+
+console.log('\n  ─ truncated JSON: cut off mid-key');
+{
+  const input = '[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"categ';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered from mid-key truncation');
+  assertEqual(result['Email'].length, 1, 'Email recovered from mid-key truncation');
+}
+
+console.log('\n  ─ truncated JSON: fence-wrapped truncated response');
+{
+  const input = '```json\n[{"id":1,"category":"Dev"},{"id":2,"category":"Ema';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered from fence-wrapped truncation');
+}
+
+console.log('\n  ─ truncated JSON: only one complete object');
+{
+  const input = '[{"id":1,"category":"Dev"},{"id":2,"cat';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev recovered with single complete object');
+}
+
+console.log('\n  ─ truncated JSON: no complete objects → still throws');
+assertThrows(
+  () => parseResponse('[{"id":1,"cate', sampleTabs, sampleCategories),
+  'Invalid JSON',
+  'throws when no complete objects can be recovered'
+);
+
 // ── Tests: buildPrompt ──────────────────────────────────────────────────────
 
 console.log('\n📋 buildPrompt');
@@ -218,6 +326,8 @@ console.log('\n📋 buildPrompt');
   assert(prompt.includes('Dev, Email'), 'includes categories');
   assert(prompt.includes('"id": 1'), 'includes tab data');
   assert(!prompt.includes('Custom rules'), 'no custom rules when empty');
+  assert(prompt.includes('Prioritize the tab title'), 'instructs title-first priority');
+  assert(prompt.includes('URL only as a secondary signal'), 'URL is secondary signal');
 }
 
 {
