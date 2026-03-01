@@ -45,6 +45,8 @@ class TabSorter {
     this.provider             = 'gemini';
     this.openaiKey            = '';
     this.claudeKey            = '';
+    this.openaiModel          = 'gpt-4o-mini';
+    this.claudeModel          = 'claude-sonnet-4-20250514';
 
     this.analyzedTabs  = null;
     this.allTabs       = [];
@@ -75,6 +77,7 @@ class TabSorter {
         'removeDuplicates', 'mode', 'stackScope', 'selectedModel',
         'includeUncategorized', 'reassignExisting', 'workspaceScope',
         'autoClose', 'provider', 'openaiKey', 'claudeKey',
+        'openaiModel', 'claudeModel',
       ]);
       if (d.apiKey)            { $('apiKey').value = d.apiKey;            this.apiKey = d.apiKey; }
       if (d.selectedModel)     { $('modelSelect').value = d.selectedModel; this.selectedModel = d.selectedModel; }
@@ -93,6 +96,8 @@ class TabSorter {
       if (d.provider) { const el = $('providerSelect'); if (el) el.value = d.provider; this.provider = d.provider; }
       if (d.openaiKey) { const el = $('openaiKey'); if (el) el.value = d.openaiKey; this.openaiKey = d.openaiKey; }
       if (d.claudeKey) { const el = $('claudeKey'); if (el) el.value = d.claudeKey; this.claudeKey = d.claudeKey; }
+      if (d.openaiModel) { const el = $('openaiModelSelect'); if (el) el.value = d.openaiModel; this.openaiModel = d.openaiModel; }
+      if (d.claudeModel) { const el = $('claudeModelSelect'); if (el) el.value = d.claudeModel; this.claudeModel = d.claudeModel; }
       this._refreshUsage();
     } catch (e) { console.error('loadSettings:', e); }
   }
@@ -114,6 +119,8 @@ class TabSorter {
         provider: this.provider,
         openaiKey: this.openaiKey,
         claudeKey: this.claudeKey,
+        openaiModel: this.openaiModel,
+        claudeModel: this.claudeModel,
       });
     } catch (e) { console.error('saveSettings:', e); }
   }
@@ -264,6 +271,18 @@ class TabSorter {
       this._save();
     });
 
+    const openaiModelEl = $('openaiModelSelect');
+    if (openaiModelEl) openaiModelEl.addEventListener('change', e => {
+      this.openaiModel = e.target.value;
+      this._save();
+    });
+
+    const claudeModelEl = $('claudeModelSelect');
+    if (claudeModelEl) claudeModelEl.addEventListener('change', e => {
+      this.claudeModel = e.target.value;
+      this._save();
+    });
+
     const copyBtn = $('copyCommandsBtn');
     if (copyBtn) copyBtn.addEventListener('click', () => this._copyCommands());
 
@@ -348,9 +367,15 @@ class TabSorter {
     const geminiSection = $('geminiKeySection');
     const openaiSection = $('openaiKeySection');
     const claudeSection = $('claudeKeySection');
+    const geminiModelSection = $('modelSection');
+    const openaiModelSection = $('openaiModelSection');
+    const claudeModelSection = $('claudeModelSection');
     if (geminiSection) geminiSection.style.display = this.provider === 'gemini' ? '' : 'none';
     if (openaiSection) openaiSection.style.display = this.provider === 'openai' ? '' : 'none';
     if (claudeSection) claudeSection.style.display = this.provider === 'claude' ? '' : 'none';
+    if (geminiModelSection) geminiModelSection.style.display = this.provider === 'gemini' ? '' : 'none';
+    if (openaiModelSection) openaiModelSection.style.display = this.provider === 'openai' ? '' : 'none';
+    if (claudeModelSection) claudeModelSection.style.display = this.provider === 'claude' ? '' : 'none';
   }
 
   // ── Copy Commands ───────────────────────────────────────────────────────
@@ -815,7 +840,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.openaiKey}` },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: this.openaiModel,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.2,
       }),
@@ -839,7 +864,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: this.claudeModel,
         max_tokens: 8192,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -1012,17 +1037,25 @@ echo "Done! Restart Vivaldi to activate the bridge."
       if (!tabs.length) continue;
       if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
 
-      const win = await chrome.windows.create({ tabId: tabs[0].id, focused: false });
+      // Create a new window, then move all tabs into it.
+      // Avoid using tabId in create() — if that tab is the last in its
+      // source window, the source window closes unexpectedly.
+      const win = await chrome.windows.create({ focused: false });
 
-      if (tabs.length > 1) {
-        await chrome.tabs.move(tabs.slice(1).map(t => t.id), { windowId: win.id, index: -1 });
+      await chrome.tabs.move(tabs.map(t => t.id), { windowId: win.id, index: -1 });
+
+      // Remove the blank tab that chrome.windows.create() opened
+      const winTabs = await chrome.tabs.query({ windowId: win.id });
+      const blankTab = winTabs.find(t => t.url === 'chrome://newtab/' || t.url === 'about:blank');
+      if (blankTab && winTabs.length > 1) {
+        try { await chrome.tabs.remove(blankTab.id); } catch {}
       }
 
       // Group inside the new window
-      const winTabs = await chrome.tabs.query({ windowId: win.id });
-      if (winTabs.length) {
+      const freshTabs = await chrome.tabs.query({ windowId: win.id });
+      if (freshTabs.length) {
         try {
-          const gid = await chrome.tabs.group({ tabIds: winTabs.map(t => t.id) });
+          const gid = await chrome.tabs.group({ tabIds: freshTabs.map(t => t.id) });
           await chrome.tabGroups.update(gid, {
             title: cat,
             color: GROUP_COLORS[ci % GROUP_COLORS.length],
