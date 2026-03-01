@@ -381,15 +381,39 @@
   <div class="card">
     <h1>🚀 AI Tab Sorter</h1>
 
-    <!-- API Key -->
+    <!-- AI Provider -->
     <div class="field">
+      <label class="field-label" for="providerSelect">AI Provider</label>
+      <select id="providerSelect">
+        <option value="gemini">Google Gemini</option>
+        <option value="openai">OpenAI (GPT)</option>
+        <option value="claude">Anthropic Claude</option>
+      </select>
+    </div>
+
+    <!-- Gemini API Key -->
+    <div id="geminiKeySection" class="field">
       <label class="field-label" for="apiKey">Gemini API Key</label>
       <input type="password" id="apiKey" placeholder="Paste your Gemini API key">
       <div class="hint">Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a></div>
     </div>
 
+    <!-- OpenAI API Key -->
+    <div id="openaiKeySection" class="field" style="display:none;">
+      <label class="field-label" for="openaiKey">OpenAI API Key</label>
+      <input type="password" id="openaiKey" placeholder="Paste your OpenAI API key">
+      <div class="hint">Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI Platform</a></div>
+    </div>
+
+    <!-- Claude API Key -->
+    <div id="claudeKeySection" class="field" style="display:none;">
+      <label class="field-label" for="claudeKey">Claude API Key</label>
+      <input type="password" id="claudeKey" placeholder="Paste your Anthropic API key">
+      <div class="hint">Get a key at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">Anthropic Console</a></div>
+    </div>
+
     <!-- Model Selection -->
-    <div class="field">
+    <div id="modelSection" class="field">
       <label class="field-label" for="modelSelect">Model</label>
       <select id="modelSelect">
         <option value="gemini-2.0-flash">gemini-2.0-flash (Recommended)</option>
@@ -418,6 +442,10 @@
         <input type="checkbox" id="removeDuplicates">
         <label for="removeDuplicates">Remove duplicate tabs before sorting</label>
       </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="includeUncategorized">
+        <label for="includeUncategorized">Create group for uncategorized tabs</label>
+      </div>
     </div>
 
     <!-- Organization Mode -->
@@ -425,14 +453,14 @@
       <label class="field-label">Organization Mode</label>
       <div class="mode-group">
         <label class="mode-option">
-          <input type="radio" name="mode" id="modeWorkspaces" value="workspaces" checked>
+          <input type="radio" name="mode" id="modeWorkspaces" value="workspaces">
           <div class="mode-info">
             <div class="mode-title">🏆 Workspaces</div>
-            <div class="mode-desc">Create Vivaldi Workspaces per category (needs bridge)</div>
+            <div class="mode-desc">Create Vivaldi Workspaces per category (Vivaldi only · needs bridge)</div>
           </div>
         </label>
         <label class="mode-option">
-          <input type="radio" name="mode" id="modeStacks" value="stacks">
+          <input type="radio" name="mode" id="modeStacks" value="stacks" checked>
           <div class="mode-info">
             <div class="mode-title">📚 Tab Stacks</div>
             <div class="mode-desc">Vivaldi tab stacks via chrome.tabGroups API</div>
@@ -469,6 +497,27 @@
       </div>
     </div>
 
+    <!-- Workspace Scope (shown only in workspace mode) -->
+    <div class="field" id="workspaceScopeSection" style="display:none;">
+      <label class="field-label">Workspace Scope</label>
+      <div class="mode-group">
+        <label class="mode-option">
+          <input type="radio" name="workspaceScope" id="wsCurrentWindow" value="current">
+          <div class="mode-info">
+            <div class="mode-title">Current Window</div>
+            <div class="mode-desc">Only organize tabs in the active window</div>
+          </div>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="workspaceScope" id="wsAllWindows" value="all" checked>
+          <div class="mode-info">
+            <div class="mode-title">All Windows</div>
+            <div class="mode-desc">Organize tabs from all windows</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
     <!-- Workspace Setup (shown only in workspace mode) -->
     <div class="field" id="workspaceSetupSection" style="display:none;">
       <label class="field-label">Workspace Status</label>
@@ -476,10 +525,14 @@
       <button id="checkBridgeBtn" class="btn-sm">🔍 Check Connection</button>
       <div id="bridgeSetupArea" style="display:none;">
         <button id="downloadSetupBtn" class="btn-sm">⬇️ Download Install Script</button>
+        <button id="copyCommandsBtn" class="btn-sm" style="margin-top:4px;">📋 Copy Install Commands</button>
         <div class="hint" style="margin-top:6px;">
-          Downloads a script that auto-installs the bridge into Vivaldi.
-          Run it, restart Vivaldi, and workspaces are ready.
+          Download a script, copy commands to run manually, or follow <a href="INSTALL.md" target="_blank" rel="noopener">step-by-step instructions</a>.
         </div>
+      </div>
+      <div class="toggle-row" style="margin-top:8px;">
+        <input type="checkbox" id="reassignExisting" checked>
+        <label for="reassignExisting">Reassign tabs already in a workspace</label>
       </div>
     </div>
 
@@ -497,6 +550,14 @@
 
     <!-- Preview -->
     <div id="preview"></div>
+
+    <!-- Settings -->
+    <div class="field" style="margin-top:4px;">
+      <div class="toggle-row">
+        <input type="checkbox" id="autoClose" checked>
+        <label for="autoClose">Auto-close popup after applying</label>
+      </div>
+    </div>
 
     <!-- Status -->
     <div id="status"></div>
