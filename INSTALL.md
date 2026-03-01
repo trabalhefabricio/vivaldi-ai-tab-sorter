@@ -3,9 +3,10 @@
 ## One-Step Setup (recommended)
 
 1. **Download** – click the green **Code** button on GitHub → **Download ZIP** → extract.
-2. **Run the setup script** inside the extracted folder:
-   - **Windows**: Right-click `install.ps1` → **Run with PowerShell**
-   - **macOS / Linux**: `chmod +x install.sh && ./install.sh` (Linux bridge may need `sudo`)
+2. **Double-click the setup file** for your platform:
+   - **Windows**: double-click **`install.bat`**
+   - **macOS**: double-click **`install.command`**
+   - **Linux**: run `chmod +x install.sh && ./install.sh` (bridge may need `sudo`)
 
 The script will:
 - Copy the extension to a permanent folder on your system
