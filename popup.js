@@ -57,7 +57,7 @@ class TabSorter {
     this.includeUncategorized = false;
     this.reassignExisting     = true;
     this.workspaceScope       = 'all';
-    this.autoClose            = true;
+    this.autoClose            = false;
     this.provider             = 'gemini';
     this.openaiKey            = '';
     this.claudeKey            = '';
@@ -269,6 +269,7 @@ class TabSorter {
 
     $('analyzeBtn').addEventListener('click', () => this._analyze());
     $('applyBtn').addEventListener('click', () => this._apply());
+    $('resetBtn').addEventListener('click', () => this._resetAnalysis());
     $('resetCounter').addEventListener('click', () => this._resetCount());
     $('refreshModelsBtn').addEventListener('click', () => this._fetchModels());
     $('checkBridgeBtn').addEventListener('click', () => this._checkBridge());
@@ -979,7 +980,41 @@ fi
 
   async _getAllTabs() {
     const tabs = await chrome.tabs.query({});
-    return tabs.map(t => ({ id: t.id, title: t.title || '', url: t.url || '', windowId: t.windowId, index: t.index }));
+    return tabs.map(t => {
+      const url = t.url || t.pendingUrl || '';
+      return {
+        id: t.id,
+        title: t.title || this._titleFromUrl(url),
+        url,
+        windowId: t.windowId,
+        index: t.index,
+      };
+    });
+  }
+
+  /**
+   * Derive a human-readable title from a URL when the browser reports an
+   * empty title (common with hibernated / discarded tabs in Vivaldi).
+   */
+  _titleFromUrl(url) {
+    if (!url) return '';
+    try {
+      const u = new URL(url);
+      // Use the hostname, stripping "www."
+      const host = u.hostname.replace(/^www\./, '');
+      let name = host;
+      // Append a readable path when it carries meaning
+      if (u.pathname && u.pathname !== '/') {
+        const path = decodeURIComponent(u.pathname)
+          .replace(/\/$/, '')
+          .replace(/[/_-]+/g, ' ')
+          .trim();
+        if (path) name = name ? name + ' – ' + path : path;
+      }
+      return name || url;
+    } catch {
+      return url;
+    }
   }
 
   _dedup(tabs) {
@@ -987,6 +1022,7 @@ fi
     const unique = [];
     const dupeIds = [];
     for (const t of tabs) {
+      if (!t.url) { unique.push(t); continue; }
       if (seen.has(t.url)) { dupeIds.push(t.id); }
       else { seen.add(t.url); unique.push(t); }
     }
@@ -1003,10 +1039,12 @@ fi
     const rules = this.logicRules ? `\n\nCustom rules:\n${this.logicRules}` : '';
     return [
       `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
-      '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
+      '\nUse the EXACT category names listed above. Every tab MUST be assigned to one of these categories; do not skip any tab.',
+      '\nUse BOTH the tab title and the URL to determine the best category. The title describes the specific content (e.g. a YouTube video about music production vs. one about gaming). The URL/domain shows the site. Both matter equally — same domain can belong to different categories depending on the title.',
+      '\nAlways pick the closest matching category. Never leave a tab uncategorized if any category is even a partial match.',
       rules,
       '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
-      '\nReturn ONLY a JSON array: [{"id":<tab_id>,"category":"<Category>"},…]',
+      '\nReturn ONLY a JSON array with one entry per tab: [{"id":<tab_id>,"category":"<Category>"},…]',
     ].join('');
   }
 
@@ -1060,9 +1098,17 @@ fi
     for (const c of this.categories) result[c] = [];
     result['Uncategorized'] = [];
 
-    const lookup = new Map(valid.map(i => [i.id, i.category]));
+    // Case-insensitive category resolver for AI responses
+    const catNorm = new Map(this.categories.map(c => [c.toLowerCase().trim(), c]));
+
+    // Coerce IDs to numbers so string "1" matches numeric 1
+    const lookup = new Map(valid.map(i => [Number(i.id), i.category]));
     for (const t of origTabs) {
-      const cat = lookup.get(t.id);
+      let cat = lookup.get(t.id);
+      if (cat) {
+        cat = cat.trim();
+        if (!result[cat]) cat = catNorm.get(cat.toLowerCase()) || null;
+      }
       (cat && result[cat] ? result[cat] : result['Uncategorized']).push(t);
     }
     return result;
@@ -1319,6 +1365,7 @@ fi
       this.analyzedTabs = await this._callAIChunked(tabs);
       this._showPreview(this.analyzedTabs);
       $('applyBtn').disabled = false;
+      $('resetBtn').disabled = false;
       this._refreshUsage();
       this._status('Analysis complete – review & apply.', 'success');
     } catch (e) {
@@ -1327,6 +1374,18 @@ fi
     } finally {
       $('analyzeBtn').disabled = false;
     }
+  }
+
+  // ── Reset Analysis ───────────────────────────────────────────────────────
+
+  _resetAnalysis() {
+    this.analyzedTabs = null;
+    this.allTabs = [];
+    $('preview').replaceChildren();
+    $('preview').classList.remove('visible');
+    $('applyBtn').disabled = true;
+    $('resetBtn').disabled = true;
+    this._status('Reset – ready for a new analysis.', 'info');
   }
 
   // ── Apply Flow ───────────────────────────────────────────────────────────
@@ -1342,7 +1401,7 @@ fi
       else await this._applyWindows();
 
       this._status('✅ Tabs sorted!', 'success');
-      if (this.autoClose) setTimeout(() => window.close(), 2000);
+      if (this.autoClose) setTimeout(() => window.close(), 5000);
     } catch (e) {
       console.error('apply:', e);
       this._status(sanitizeErrorMessage(e.message), 'error');
@@ -1370,21 +1429,24 @@ fi
     const groups = [];
 
     if (this.stackScope === 'all') {
-      const wins = await chrome.windows.getAll({ populate: true });
+      // Pick the first *normal* browser window (skip popups, devtools, etc.)
+      const wins = await chrome.windows.getAll({ windowTypes: ['normal'] });
       if (!wins.length) throw new Error('No browser windows found.');
       targetWin = wins[0].id;
 
-      // Move tabs from other windows first
+      // Move tabs from other windows into the target window
       for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
         if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
         for (const t of tabs) {
           if (t.windowId !== targetWin) {
-            try { await chrome.tabs.move(t.id, { windowId: targetWin, index: -1 }); } catch {}
+            try { await chrome.tabs.move(t.id, { windowId: targetWin, index: -1 }); } catch (e) {
+              console.warn('Tab move failed (pinned/system?):', t.id, e.message);
+            }
           }
         }
       }
 
-      // Re-query
+      // Re-query to get fresh tab state after moves
       const fresh = await chrome.tabs.query({ windowId: targetWin });
       const map = new Map(fresh.map(t => [t.id, t]));
       for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
@@ -1393,11 +1455,19 @@ fi
         if (valid.length) groups.push({ cat, tabs: valid });
       }
     } else {
-      const cur = await chrome.windows.getCurrent();
+      // "Current Window" — use getLastFocused with normal type so the popup's
+      // own window (type "popup") is not selected instead of the browser window.
+      const cur = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
       targetWin = cur.id;
+
+      // Re-query live tabs in target window (the original tab objects from
+      // analysis may belong to multiple windows; filter by the browser window)
+      const liveTabs = await chrome.tabs.query({ windowId: targetWin });
+      const liveIds = new Set(liveTabs.map(t => t.id));
+
       for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
         if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
-        const inWin = tabs.filter(t => t.windowId === targetWin);
+        const inWin = tabs.filter(t => liveIds.has(t.id));
         if (inWin.length) groups.push({ cat, tabs: inWin });
       }
     }
@@ -1406,14 +1476,14 @@ fi
 
     let ci = 0;
     for (const { cat, tabs } of groups) {
-      // Verify tabs still exist
+      // Verify tabs still exist and collect valid IDs
       const ids = [];
       for (const t of tabs) {
         try { await chrome.tabs.get(t.id); ids.push(t.id); } catch {}
       }
       if (!ids.length) continue;
 
-      const gid = await chrome.tabs.group({ tabIds: ids });
+      const gid = await chrome.tabs.group({ createProperties: { windowId: targetWin }, tabIds: ids });
       await chrome.tabGroups.update(gid, {
         title: cat,
         color: GROUP_COLORS[ci % GROUP_COLORS.length],
@@ -1437,33 +1507,48 @@ fi
       // source window, the source window closes unexpectedly.
       const win = await chrome.windows.create({ focused: false });
 
-      try {
-        await chrome.tabs.move(tabs.map(t => t.id), { windowId: win.id, index: -1 });
-      } catch (e) {
-        console.error('Window mode tab move:', e);
-        // Some tabs may have been closed – skip gracefully
+      // Move tabs individually so one failure (pinned/system) doesn't block all
+      const movedIds = [];
+      for (const t of tabs) {
+        try {
+          await chrome.tabs.move(t.id, { windowId: win.id, index: -1 });
+          movedIds.push(t.id);
+        } catch (e) {
+          console.warn('Window mode: could not move tab', t.id, e.message);
+        }
       }
 
-      // Remove the blank tab that chrome.windows.create() opened
+      // Remove the blank tab that chrome.windows.create() opened.
+      // Also check Vivaldi-specific start page URLs.
       const winTabs = await chrome.tabs.query({ windowId: win.id });
       const blankTab = winTabs.find(t =>
         !t.url || t.url === '' || t.url === 'chrome://newtab/' || t.url === 'about:blank'
+        || t.url === 'vivaldi://startpage/' || t.url === 'vivaldi://newtab/'
       );
       if (blankTab && winTabs.length > 1) {
         try { await chrome.tabs.remove(blankTab.id); } catch {}
       }
 
+      // If no tabs were actually moved, close the empty window
+      if (!movedIds.length) {
+        try { await chrome.windows.remove(win.id); } catch {}
+        continue;
+      }
+
       // Group inside the new window
       const freshTabs = await chrome.tabs.query({ windowId: win.id });
-      if (freshTabs.length) {
+      const groupableIds = freshTabs.map(t => t.id);
+      if (groupableIds.length) {
         try {
-          const gid = await chrome.tabs.group({ tabIds: freshTabs.map(t => t.id) });
+          const gid = await chrome.tabs.group({ createProperties: { windowId: win.id }, tabIds: groupableIds });
           await chrome.tabGroups.update(gid, {
             title: cat,
             color: GROUP_COLORS[ci % GROUP_COLORS.length],
             collapsed: false,
           });
-        } catch {}
+        } catch (e) {
+          console.warn('Window mode: could not group tabs in', win.id, e.message);
+        }
       }
       ci++;
     }

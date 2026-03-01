@@ -36,18 +36,38 @@ Open DevTools (F12) → Console → look for "[AI Tab Sorter] Bridge loaded."
 **Or use the popup:**
 Select Workspaces mode → click **🔍 Check Connection**.
 
+## Tab Stacks / Tab Groups Mode
+
+| Problem | Fix |
+|---------|-----|
+| "No tabs to organise" | Fixed in v3.0.0 — the popup used to detect its own window instead of the browser window. Now uses `getLastFocused({ windowTypes: ['normal'] })` |
+| Tabs not grouping after cross-window move | Fixed — `chrome.tabs.group()` now specifies the target `windowId` explicitly |
+| Pinned tabs block entire group | Fixed — each tab is moved individually; failures are logged and skipped |
+| Groups appear as Chrome-style labels, not Vivaldi native stacks | Expected — the extension uses `chrome.tabGroups` API. Vivaldi renders these as coloured label sections in the tab bar, not compact/accordion stacks |
+
+## Separate Windows Mode
+
+| Problem | Fix |
+|---------|-----|
+| No tabs appear in new windows | Fixed in v3.0.0 — batch `chrome.tabs.move()` would fail entirely if any single tab couldn't be moved. Now moves tabs individually |
+| Extra blank tab in each window | Fixed — now detects Vivaldi-specific start pages (`vivaldi://startpage/`, `vivaldi://newtab/`) in addition to `chrome://newtab/` |
+| Empty windows left behind | Fixed — if no tabs could be moved into a new window, the empty window is now closed automatically |
+| Pinned tabs cause errors | Fixed — pinned/system tabs that can't be moved are skipped with a console warning |
+| Tab groups not created in new windows | Fixed — `chrome.tabs.group()` now specifies target `windowId` explicitly |
+
 ## Tab Sorting
 
 | Problem | Fix |
 |---------|-----|
 | Wrong categories | Add more specific logic rules; reduce categories to 3–5 |
-| Some tabs skipped | System tabs (`vivaldi://`, `chrome://`) cannot be moved |
+| Some tabs skipped | System tabs (`vivaldi://`, `chrome://`) cannot be moved; pinned tabs cannot be moved cross-window |
 | Duplicates remain | Extension matches exact URLs only |
 
 ## Vivaldi‑Specific Notes
 
 - **Tab Stacks mode** uses Chrome's `chrome.tabGroups` API. Vivaldi supports this as a Chromium browser, but the visual result differs from Vivaldi's native tab stacking (compact/accordion). The groups will appear as labelled, coloured sections in your tab bar.
 - **Workspaces mode** uses Vivaldi's native `vivaldi.workspaces` API via the bridge script. This creates real Vivaldi Workspaces visible in the workspace switcher.
+- **Popup window context** — the extension popup runs in its own window (type `"popup"`). API calls like `chrome.windows.getCurrent()` return the popup window, not the user's browser window. The extension uses `chrome.windows.getLastFocused({ windowTypes: ['normal'] })` to correctly identify the browser window.
 
 ## Chrome vs Vivaldi Differences
 
@@ -58,6 +78,7 @@ Select Workspaces mode → click **🔍 Check Connection**.
 | Workspaces mode | ❌ Not available | ✅ Requires bridge |
 | Bridge installation | Not needed | Only for Workspace mode |
 | Browser auto‑detection | Detected as Chrome | Detected as Vivaldi |
+| Blank tab URL | `chrome://newtab/` | `vivaldi://startpage/` or `vivaldi://newtab/` |
 
 ## Tab Chunking
 

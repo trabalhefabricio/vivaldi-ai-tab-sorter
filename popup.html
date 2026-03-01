@@ -240,6 +240,18 @@
       box-shadow: 0 6px 16px rgba(245, 87, 108, 0.35);
     }
 
+    .btn-reset {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ccc;
+      flex: 0 0 auto;
+      padding: 11px 14px;
+    }
+
+    .btn-reset:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.22);
+      color: #fff;
+    }
+
     .btn-sm {
       padding: 7px 10px;
       font-size: 11px;
@@ -659,6 +671,7 @@
     <div class="field actions">
       <button id="analyzeBtn" class="btn btn-analyze">🔍 Analyze</button>
       <button id="applyBtn" class="btn btn-apply" disabled>✨ Apply</button>
+      <button id="resetBtn" class="btn btn-reset" disabled>🔄 Reset</button>
     </div>
 
     <!-- Usage Info -->
@@ -673,8 +686,8 @@
     <!-- Settings -->
     <div class="field" style="margin-top:4px;">
       <div class="toggle-row">
-        <input type="checkbox" id="autoClose" checked>
-        <label for="autoClose">Auto-close popup after applying</label>
+        <input type="checkbox" id="autoClose">
+        <label for="autoClose">Auto-close popup after applying (5s)</label>
       </div>
     </div>
 

@@ -21,10 +21,12 @@ function buildPrompt(categories, logicRules, tabsInfo) {
   const rules = logicRules ? `\n\nCustom rules:\n${logicRules}` : '';
   return [
     `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
-    '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
+    '\nUse the EXACT category names listed above. Every tab MUST be assigned to one of these categories; do not skip any tab.',
+    '\nUse BOTH the tab title and the URL to determine the best category. The title describes the specific content (e.g. a YouTube video about music production vs. one about gaming). The URL/domain shows the site. Both matter equally — same domain can belong to different categories depending on the title.',
+    '\nAlways pick the closest matching category. Never leave a tab uncategorized if any category is even a partial match.',
     rules,
     '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
-    '\nReturn ONLY a JSON array: [{"id":<tab_id>,"category":"<Category>"},…]',
+    '\nReturn ONLY a JSON array with one entry per tab: [{"id":<tab_id>,"category":"<Category>"},…]',
   ].join('');
 }
 
@@ -78,9 +80,17 @@ function parseResponse(text, origTabs, categories) {
   for (const c of categories) result[c] = [];
   result['Uncategorized'] = [];
 
-  const lookup = new Map(valid.map(i => [i.id, i.category]));
+  // Case-insensitive category resolver for AI responses
+  const catNorm = new Map(categories.map(c => [c.toLowerCase().trim(), c]));
+
+  // Coerce IDs to numbers so string "1" matches numeric 1
+  const lookup = new Map(valid.map(i => [Number(i.id), i.category]));
   for (const t of origTabs) {
-    const cat = lookup.get(t.id);
+    let cat = lookup.get(t.id);
+    if (cat) {
+      cat = cat.trim();
+      if (!result[cat]) cat = catNorm.get(cat.toLowerCase()) || null;
+    }
     (cat && result[cat] ? result[cat] : result['Uncategorized']).push(t);
   }
   return result;
@@ -104,6 +114,28 @@ function repairTruncatedJSON(json) {
     if (Array.isArray(arr) && arr.length > 0) return arr;
   } catch { /* repair failed */ }
   return null;
+}
+
+function normalizeTab(t) {
+  return {
+    id: t.id,
+    title: t.title || '',
+    url: t.url || t.pendingUrl || '',
+    windowId: t.windowId,
+    index: t.index,
+  };
+}
+
+function dedup(tabs) {
+  const seen = new Set();
+  const unique = [];
+  const dupeIds = [];
+  for (const t of tabs) {
+    if (!t.url) { unique.push(t); continue; }
+    if (seen.has(t.url)) { dupeIds.push(t.id); }
+    else { seen.add(t.url); unique.push(t); }
+  }
+  return { unique, dupeIds };
 }
 
 // ── Test runner ─────────────────────────────────────────────────────────────
@@ -202,6 +234,46 @@ console.log('\n  ─ unknown category goes to Uncategorized');
   const result = parseResponse(input, sampleTabs, sampleCategories);
   assertEqual(result['Uncategorized'].length, 1, 'unknown cat → Uncategorized');
   assertEqual(result['Uncategorized'][0].id, 1, 'GitHub went to Uncategorized');
+}
+
+console.log('\n  ─ case-insensitive category matching');
+{
+  const input = '[{"id":1,"category":"dev"},{"id":2,"category":"EMAIL"},{"id":3,"category":"media"}]';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'lowercase "dev" matched Dev');
+  assertEqual(result['Email'].length, 1, 'uppercase "EMAIL" matched Email');
+  assertEqual(result['Media'].length, 1, 'lowercase "media" matched Media');
+  assertEqual(result['Uncategorized'].length, 0, 'no uncategorized with case mismatch');
+}
+
+console.log('\n  ─ string tab IDs coerced to numbers');
+{
+  const input = '[{"id":"1","category":"Dev"},{"id":"2","category":"Email"},{"id":"3","category":"Media"}]';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'string ID "1" matched numeric 1');
+  assertEqual(result['Email'].length, 1, 'string ID "2" matched numeric 2');
+  assertEqual(result['Media'].length, 1, 'string ID "3" matched numeric 3');
+  assertEqual(result['Uncategorized'].length, 0, 'no uncategorized with string IDs');
+}
+
+console.log('\n  ─ category names with surrounding whitespace');
+{
+  const input = '[{"id":1,"category":" Dev "},{"id":2,"category":"Email "},{"id":3,"category":" Media"}]';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'whitespace-padded " Dev " matched Dev');
+  assertEqual(result['Email'].length, 1, 'trailing space "Email " matched Email');
+  assertEqual(result['Media'].length, 1, 'leading space " Media" matched Media');
+  assertEqual(result['Uncategorized'].length, 0, 'no uncategorized with whitespace');
+}
+
+console.log('\n  ─ combined: string IDs + wrong case + whitespace');
+{
+  const input = '[{"id":"1","category":" dev "},{"id":"2","category":"EMAIL"},{"id":"3","category":"media "}]';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'combined issues: " dev " → Dev');
+  assertEqual(result['Email'].length, 1, 'combined issues: "EMAIL" → Email');
+  assertEqual(result['Media'].length, 1, 'combined issues: "media " → Media');
+  assertEqual(result['Uncategorized'].length, 0, 'no uncategorized with combined issues');
 }
 
 console.log('\n  ─ invalid JSON');
@@ -326,8 +398,11 @@ console.log('\n📋 buildPrompt');
   assert(prompt.includes('Dev, Email'), 'includes categories');
   assert(prompt.includes('"id": 1'), 'includes tab data');
   assert(!prompt.includes('Custom rules'), 'no custom rules when empty');
-  assert(prompt.includes('Prioritize the tab title'), 'instructs title-first priority');
-  assert(prompt.includes('URL only as a secondary signal'), 'URL is secondary signal');
+  assert(prompt.includes('BOTH the tab title and the URL'), 'instructs to use title and URL');
+  assert(prompt.includes('Both matter equally'), 'title and URL weighted equally');
+  assert(prompt.includes('closest matching category'), 'instructs closest match');
+  assert(prompt.includes('EXACT category names'), 'instructs exact category names');
+  assert(prompt.includes('do not skip any tab'), 'instructs not to skip tabs');
 }
 
 {
@@ -413,6 +488,104 @@ console.log('\n📋 Bridge Code Preservation');
 
   // Correct approach: no escaping for << 'HEREDOC' (quoted delimiter = literal content)
   assert(bridgeCode.includes("=== 'undefined'"), 'unescaped code preserves quotes for heredoc');
+}
+
+// ── Tests: Tab Hibernation Handling ──────────────────────────────────────────
+
+console.log('\n📋 Tab Hibernation Handling');
+
+console.log('\n  ─ normalizeTab uses pendingUrl as URL fallback');
+{
+  const tab = { id: 1, title: 'GitHub', url: '', pendingUrl: 'https://github.com', windowId: 1, index: 0 };
+  const result = normalizeTab(tab);
+  assertEqual(result.url, 'https://github.com', 'pendingUrl used when url is empty');
+}
+
+{
+  const tab = { id: 2, title: 'Gmail', url: undefined, pendingUrl: 'https://mail.google.com', windowId: 1, index: 1 };
+  const result = normalizeTab(tab);
+  assertEqual(result.url, 'https://mail.google.com', 'pendingUrl used when url is undefined');
+}
+
+{
+  const tab = { id: 3, title: 'YouTube', url: 'https://youtube.com', pendingUrl: 'https://youtube.com/watch', windowId: 1, index: 2 };
+  const result = normalizeTab(tab);
+  assertEqual(result.url, 'https://youtube.com', 'url preferred over pendingUrl when both present');
+}
+
+{
+  const tab = { id: 4, title: '', url: '', pendingUrl: '', windowId: 1, index: 3 };
+  const result = normalizeTab(tab);
+  assertEqual(result.url, '', 'empty string when both url and pendingUrl are empty');
+  assertEqual(result.title, '', 'empty title preserved');
+}
+
+console.log('\n  ─ dedup skips tabs with empty URLs');
+{
+  const tabs = [
+    { id: 1, title: 'GitHub', url: 'https://github.com' },
+    { id: 2, title: '', url: '' },
+    { id: 3, title: '', url: '' },
+    { id: 4, title: 'Gmail', url: 'https://mail.google.com' },
+  ];
+  const { unique, dupeIds } = dedup(tabs);
+  assertEqual(unique.length, 4, 'empty-URL tabs not deduped against each other');
+  assertEqual(dupeIds.length, 0, 'no tabs flagged as duplicates');
+}
+
+{
+  const tabs = [
+    { id: 1, title: 'GitHub', url: 'https://github.com' },
+    { id: 2, title: 'GitHub 2', url: 'https://github.com' },
+    { id: 3, title: '', url: '' },
+  ];
+  const { unique, dupeIds } = dedup(tabs);
+  assertEqual(unique.length, 2, 'real duplicate still detected');
+  assertEqual(dupeIds, [2], 'duplicate tab ID identified');
+}
+
+// ── Tests: Title From URL (hibernated tab fallback) ─────────────────────────
+
+console.log('\n📋 Title From URL (hibernated tab fallback)');
+
+function titleFromUrl(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '');
+    let name = host;
+    if (u.pathname && u.pathname !== '/') {
+      const path = decodeURIComponent(u.pathname)
+        .replace(/\/$/, '')
+        .replace(/[/_-]+/g, ' ')
+        .trim();
+      if (path) name = name ? name + ' – ' + path : path;
+    }
+    return name || url;
+  } catch {
+    return url;
+  }
+}
+
+console.log('\n  ─ derives readable names from URLs');
+
+{
+  assertEqual(titleFromUrl('https://github.com'), 'github.com', 'root domain');
+  assertEqual(titleFromUrl('https://www.github.com'), 'github.com', 'strips www.');
+  assertEqual(titleFromUrl('https://github.com/user/repo'), 'github.com – user repo', 'path segments');
+  assertEqual(titleFromUrl('https://docs.google.com/document/d/abc'), 'docs.google.com – document d abc', 'deep path');
+  assertEqual(titleFromUrl('https://en.wikipedia.org/wiki/JavaScript'), 'en.wikipedia.org – wiki JavaScript', 'Wikipedia path');
+  assertEqual(titleFromUrl('http://localhost:3000'), 'localhost', 'localhost');
+}
+
+console.log('\n  ─ edge cases');
+
+{
+  assertEqual(titleFromUrl(''), '', 'empty URL returns empty');
+  assertEqual(titleFromUrl('about:blank'), 'blank', 'about:blank derives path only (no hostname)');
+  assertEqual(titleFromUrl('chrome://extensions/'), 'extensions', 'chrome:// uses hostname');
+  assertEqual(titleFromUrl('https://www.fiverr.com/categories/programming-tech'),
+    'fiverr.com – categories programming tech', 'Fiverr path is readable');
 }
 
 // ── Results ─────────────────────────────────────────────────────────────────
