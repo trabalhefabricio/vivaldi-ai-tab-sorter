@@ -5,354 +5,469 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vivaldi AI Tab Sorter</title>
   <style>
-    * {
+    *,
+    *::before,
+    *::after {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
-    
+
     body {
-      width: 480px;
-      min-height: 500px;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      width: 460px;
+      min-height: 480px;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: #fff;
-      padding: 20px;
+      padding: 16px;
     }
-    
-    .container {
+
+    .card {
       background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(10px);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(12px);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
     }
-    
+
     h1 {
-      font-size: 24px;
-      margin-bottom: 20px;
+      font-size: 22px;
       text-align: center;
-      font-weight: 600;
+      font-weight: 700;
+      margin-bottom: 18px;
+      letter-spacing: -0.3px;
     }
-    
-    .section {
-      margin-bottom: 20px;
+
+    .field {
+      margin-bottom: 16px;
     }
-    
-    label {
+
+    .field-label {
       display: block;
-      margin-bottom: 8px;
-      font-weight: 500;
-      font-size: 13px;
-      color: rgba(255, 255, 255, 0.95);
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: rgba(255, 255, 255, 0.9);
     }
-    
+
+    .hint {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.65);
+      margin-top: 4px;
+    }
+
+    .hint a {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
     input[type="text"],
     input[type="password"],
-    textarea {
+    textarea,
+    select {
       width: 100%;
-      padding: 10px 12px;
-      border: 2px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.15);
+      padding: 9px 11px;
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.12);
       color: #fff;
       font-size: 13px;
-      transition: all 0.3s;
+      font-family: inherit;
+      transition: border-color 0.2s, background 0.2s;
     }
-    
+
     input::placeholder,
     textarea::placeholder {
-      color: rgba(255, 255, 255, 0.6);
+      color: rgba(255, 255, 255, 0.5);
     }
-    
+
     input:focus,
-    textarea:focus {
+    textarea:focus,
+    select:focus {
       outline: none;
       border-color: rgba(255, 255, 255, 0.5);
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.18);
     }
-    
+
+    select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 30px;
+    }
+
+    select option {
+      background: #4a4a6a;
+      color: #fff;
+    }
+
     textarea {
       resize: vertical;
-      min-height: 60px;
-      font-family: inherit;
+      min-height: 52px;
     }
-    
-    .checkbox-group {
+
+    .toggle-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-top: 12px;
-    }
-    
-    input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
       cursor: pointer;
     }
-    
-    .radio-group {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 8px;
-    }
-    
-    .radio-option {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.3s;
-    }
-    
-    .radio-option:hover {
-      background: rgba(255, 255, 255, 0.15);
-    }
-    
-    .radio-option input[type="radio"] {
+
+    .toggle-row input[type="checkbox"] {
       width: 16px;
       height: 16px;
       cursor: pointer;
+      accent-color: #f5576c;
     }
-    
-    .radio-option label {
-      margin: 0;
+
+    .toggle-row label {
       cursor: pointer;
+      font-size: 13px;
+    }
+
+    .mode-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .mode-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 9px 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .mode-option:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .mode-option input[type="radio"] {
+      margin-top: 2px;
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+      accent-color: #f5576c;
+    }
+
+    .mode-option .mode-info {
       flex: 1;
     }
-    
-    button {
-      width: 100%;
-      padding: 12px;
+
+    .mode-option .mode-title {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .mode-option .mode-desc {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 2px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 11px;
       border: none;
-      border-radius: 8px;
-      font-size: 14px;
+      border-radius: 7px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.3s;
-      margin-top: 8px;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+      font-family: inherit;
     }
-    
-    .btn-primary {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-      color: white;
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
-    
-    .btn-primary:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(245, 87, 108, 0.4);
-    }
-    
-    .btn-secondary {
+
+    .btn-analyze {
       background: rgba(255, 255, 255, 0.2);
-      color: white;
+      color: #fff;
     }
-    
-    .btn-secondary:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.3);
+
+    .btn-analyze:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.28);
     }
-    
-    button:disabled {
+
+    .btn-apply {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: #fff;
+    }
+
+    .btn-apply:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(245, 87, 108, 0.35);
+    }
+
+    .btn-sm {
+      padding: 7px 10px;
+      font-size: 11px;
+      border-radius: 6px;
+      border: none;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+      width: 100%;
+      margin-top: 6px;
+    }
+
+    .btn-sm:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .btn-sm:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
-    
-    #preview {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 12px;
-      margin-top: 12px;
-      display: none;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    
-    #preview.visible {
-      display: block;
-    }
-    
-    .preview-item {
-      padding: 6px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      font-size: 13px;
-    }
-    
-    .preview-item:last-child {
-      border-bottom: none;
-    }
-    
-    .preview-category {
-      font-weight: 600;
-      color: #fff;
-    }
-    
-    .preview-count {
-      color: rgba(255, 255, 255, 0.8);
-      margin-left: 8px;
-    }
-    
-    #status {
-      margin-top: 12px;
-      padding: 10px;
-      border-radius: 8px;
-      font-size: 13px;
+
+    .usage-bar {
+      margin-top: 10px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      font-size: 11px;
       text-align: center;
       display: none;
     }
-    
+
+    .usage-bar.visible {
+      display: block;
+    }
+
+    .usage-bar .reset-link {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      text-decoration: underline;
+      font-size: 10px;
+      cursor: pointer;
+      padding: 0;
+      margin-top: 4px;
+      font-family: inherit;
+    }
+
+    #preview {
+      margin-top: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      padding: 10px 12px;
+      display: none;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    #preview.visible {
+      display: block;
+    }
+
+    .preview-heading {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .preview-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 12px;
+    }
+
+    .preview-row:last-of-type {
+      border-bottom: none;
+    }
+
+    .preview-cat {
+      font-weight: 600;
+    }
+
+    .preview-count {
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .preview-total {
+      font-weight: 700;
+      padding-top: 6px;
+      margin-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      font-size: 12px;
+    }
+
+    #status {
+      margin-top: 10px;
+      padding: 9px 10px;
+      border-radius: 7px;
+      font-size: 12px;
+      text-align: center;
+      display: none;
+      line-height: 1.4;
+    }
+
     #status.visible {
       display: block;
     }
-    
+
     #status.success {
-      background: rgba(72, 187, 120, 0.3);
-      color: #fff;
+      background: rgba(72, 187, 120, 0.25);
     }
-    
+
     #status.error {
-      background: rgba(245, 101, 101, 0.3);
-      color: #fff;
+      background: rgba(245, 101, 101, 0.25);
     }
-    
+
     #status.info {
-      background: rgba(66, 153, 225, 0.3);
-      color: #fff;
+      background: rgba(66, 153, 225, 0.25);
     }
-    
-    .help-text {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.7);
-      margin-top: 4px;
-      font-style: italic;
-    }
-    
-    /* Scrollbar styling */
+
     ::-webkit-scrollbar {
-      width: 6px;
+      width: 5px;
     }
-    
+
     ::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.06);
       border-radius: 3px;
     }
-    
+
     ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.25);
       border-radius: 3px;
     }
-    
+
     ::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.5);
+      background: rgba(255, 255, 255, 0.4);
     }
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="card">
     <h1>🚀 AI Tab Sorter</h1>
-    
-    <div class="section">
-      <label for="apiKey">Gemini API Key</label>
-      <input type="password" id="apiKey" placeholder="Enter your Gemini API key">
-      <div class="help-text">Get your key from <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: rgba(255, 255, 255, 0.9);">Google AI Studio</a></div>
+
+    <!-- API Key -->
+    <div class="field">
+      <label class="field-label" for="apiKey">Gemini API Key</label>
+      <input type="password" id="apiKey" placeholder="Paste your Gemini API key">
+      <div class="hint">Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a></div>
     </div>
-    
-    <div class="section">
-      <label for="modelSelect">Gemini Model</label>
-      <select id="modelSelect" style="width: 100%; padding: 10px 12px; border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 13px; cursor: pointer;">
-        <option value="gemini-1.5-flash">gemini-1.5-flash (Recommended - Stable)</option>
-        <option value="gemini-1.5-pro">gemini-1.5-pro (More Capable)</option>
-        <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (Experimental)</option>
+
+    <!-- Model Selection -->
+    <div class="field">
+      <label class="field-label" for="modelSelect">Model</label>
+      <select id="modelSelect">
+        <option value="gemini-2.0-flash">gemini-2.0-flash (Recommended)</option>
+        <option value="gemini-1.5-flash">gemini-1.5-flash (Stable)</option>
+        <option value="gemini-1.5-pro">gemini-1.5-pro (Advanced)</option>
       </select>
-      <button id="refreshModelsBtn" style="margin-top: 8px; padding: 8px 12px; background: rgba(255, 255, 255, 0.2); color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; width: 100%;">🔄 Refresh Available Models</button>
-      <div class="help-text">Select which Gemini model to use. Flash models are faster and have higher quotas. Click refresh to fetch latest models from Google.</div>
+      <button id="refreshModelsBtn" class="btn-sm">🔄 Refresh Available Models</button>
     </div>
-    
-    <div class="section">
-      <label for="categories">Categories (comma-separated)</label>
-      <input type="text" id="categories" placeholder="e.g., Work, Shopping, Research, Social, Entertainment">
-      <div class="help-text">List the categories you want to organize your tabs into</div>
+
+    <!-- Categories -->
+    <div class="field">
+      <label class="field-label" for="categories">Categories</label>
+      <input type="text" id="categories" placeholder="Work, Shopping, Research, Social, Entertainment">
+      <div class="hint">Comma-separated list of categories for tab organization</div>
     </div>
-    
-    <div class="section">
-      <label for="logicRules">Logic Rules (optional)</label>
-      <textarea id="logicRules" placeholder="e.g., Always put YouTube in Entertainment unless the title mentions 'Coding', then put it in Work"></textarea>
-      <div class="help-text">Add custom rules to help AI categorize tabs more accurately</div>
+
+    <!-- Logic Rules -->
+    <div class="field">
+      <label class="field-label" for="logicRules">Custom Rules (optional)</label>
+      <textarea id="logicRules" rows="2" placeholder="e.g., Put YouTube in Entertainment unless title mentions 'Tutorial', then put in Work"></textarea>
     </div>
-    
-    <div class="section">
-      <div class="checkbox-group">
+
+    <!-- Duplicate Removal -->
+    <div class="field">
+      <div class="toggle-row">
         <input type="checkbox" id="removeDuplicates">
-        <label for="removeDuplicates" style="cursor: pointer;">Remove duplicate tabs before sorting</label>
+        <label for="removeDuplicates">Remove duplicate tabs before sorting</label>
       </div>
     </div>
-    
-    <div class="section">
-      <label>Organization Mode</label>
-      <div class="radio-group">
-        <div class="radio-option">
+
+    <!-- Organization Mode -->
+    <div class="field">
+      <label class="field-label">Organization Mode</label>
+      <div class="mode-group">
+        <label class="mode-option">
           <input type="radio" name="mode" id="modeWorkspaces" value="workspaces" checked>
-          <label for="modeWorkspaces">
-            <strong>Workspaces</strong> (Recommended)
-            <div class="help-text">Create/use Vivaldi Workspaces for each category</div>
-          </label>
-        </div>
-        <div class="radio-option">
+          <div class="mode-info">
+            <div class="mode-title">🏆 Workspaces</div>
+            <div class="mode-desc">Create Vivaldi Workspaces per category (needs bridge)</div>
+          </div>
+        </label>
+        <label class="mode-option">
           <input type="radio" name="mode" id="modeStacks" value="stacks">
-          <label for="modeStacks">
-            <strong>Tab Stacks</strong> (Named & Colored)
-            <div class="help-text">Group tabs with colors and category names</div>
-          </label>
-        </div>
-        <div class="radio-option">
+          <div class="mode-info">
+            <div class="mode-title">📚 Tab Stacks</div>
+            <div class="mode-desc">Colored tab groups in current window</div>
+          </div>
+        </label>
+        <label class="mode-option">
           <input type="radio" name="mode" id="modeWindows" value="windows">
-          <label for="modeWindows">
-            <strong>Separate Windows</strong>
-            <div class="help-text">Create one window per category</div>
-          </label>
-        </div>
+          <div class="mode-info">
+            <div class="mode-title">🪟 Separate Windows</div>
+            <div class="mode-desc">One window per category</div>
+          </div>
+        </label>
       </div>
     </div>
-    
-    <div class="section" id="stackOptionsSection" style="display: none;">
-      <label>Stack Mode Options</label>
-      <div class="radio-group">
-        <div class="radio-option">
+
+    <!-- Stack Scope (shown only in stack mode) -->
+    <div class="field" id="stackOptionsSection" style="display:none;">
+      <label class="field-label">Stack Scope</label>
+      <div class="mode-group">
+        <label class="mode-option">
           <input type="radio" name="stackScope" id="stackCurrentWindow" value="current" checked>
-          <label for="stackCurrentWindow">
-            <strong>Current Window Only</strong>
-            <div class="help-text">Organize tabs in the current window</div>
-          </label>
-        </div>
-        <div class="radio-option">
+          <div class="mode-info">
+            <div class="mode-title">Current Window</div>
+            <div class="mode-desc">Only organize tabs in the active window</div>
+          </div>
+        </label>
+        <label class="mode-option">
           <input type="radio" name="stackScope" id="stackAllWindows" value="all">
-          <label for="stackAllWindows">
-            <strong>All Windows</strong>
-            <div class="help-text">Consolidate all tabs into one window with organized stacks</div>
-          </label>
-        </div>
+          <div class="mode-info">
+            <div class="mode-title">All Windows</div>
+            <div class="mode-desc">Consolidate all tabs into one window</div>
+          </div>
+        </label>
       </div>
     </div>
-    
-    <div class="section">
-      <button id="analyzeBtn" class="btn-secondary">🔍 Analyze & Preview</button>
-      <button id="applyBtn" class="btn-primary" disabled>✨ Apply Sorting</button>
+
+    <!-- Actions -->
+    <div class="field actions">
+      <button id="analyzeBtn" class="btn btn-analyze">🔍 Analyze</button>
+      <button id="applyBtn" class="btn btn-apply" disabled>✨ Apply</button>
     </div>
-    
-    <div id="usageInfo" style="margin-top: 8px; padding: 8px; background: rgba(255, 255, 255, 0.1); border-radius: 6px; font-size: 11px; text-align: center; display: none;">
-      <div id="usageText" style="color: rgba(255, 255, 255, 0.9);"></div>
-      <div style="margin-top: 6px;">
-        <button id="resetCounter" style="background: none; border: none; color: rgba(255, 255, 255, 0.8); text-decoration: underline; font-size: 10px; cursor: pointer; padding: 0; font-family: inherit;">Reset Counter</button>
-      </div>
+
+    <!-- Usage Info -->
+    <div id="usageInfo" class="usage-bar">
+      <div id="usageText"></div>
+      <button id="resetCounter" class="reset-link">Reset Counter</button>
     </div>
-    
+
+    <!-- Preview -->
     <div id="preview"></div>
+
+    <!-- Status -->
     <div id="status"></div>
   </div>
-  
+
   <script src="popup.js"></script>
 </body>
 </html>

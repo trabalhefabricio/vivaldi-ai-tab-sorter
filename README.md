@@ -4,11 +4,9 @@
 
   <h1>🚀 Vivaldi AI Tab Sorter</h1>
 
-  <p>Power-User AI Tab Manager for Vivaldi Browser</p>
-  
   <p>Intelligently organize hundreds of tabs into Workspaces, Tab Stacks, or Windows using Google Gemini AI</p>
-
-  <a href="https://aistudio.google.com/app/apikey">Get Gemini API Key</a> | <a href="DOCUMENTATION.md">Full Documentation</a>
+  
+  <a href="https://aistudio.google.com/app/apikey">Get Gemini API Key</a> | <a href="DOCUMENTATION.md">Documentation</a> | <a href="EXAMPLES.md">Examples</a>
 
 </div>
 
@@ -16,57 +14,38 @@
 
 ## ✨ Features
 
-- 🤖 **AI-Powered**: Uses Gemini 2.0 Flash to analyze and categorize tabs
-- 🏆 **Vivaldi Workspaces**: Automatically create and organize tabs into Workspaces
-- 📚 **Tab Stacks**: Group tabs visually in your current window
-- 🪟 **Separate Windows**: Create dedicated windows for each category
-- 🎯 **Custom Rules**: Guide AI with your own logic rules
-- 🔄 **Duplicate Removal**: Optional deduplication before sorting
-- 👀 **Preview First**: See the plan before applying changes
-- 💾 **Persistent Settings**: All settings saved automatically
+- 🤖 **AI‑Powered** – Google Gemini categorises tabs by title & URL
+- 🏆 **Vivaldi Workspaces** – create / reuse Workspaces per category
+- 📚 **Tab Stacks** – coloured, named groups in your current window
+- 🪟 **Separate Windows** – one window per category
+- 🎯 **Custom Rules** – steer the AI with your own logic
+- 🔄 **Duplicate Removal** – optional dedup before sorting
+- 👀 **Preview First** – review the plan before applying
+- 💾 **Persistent Settings** – everything saved automatically
+- 📊 **Usage Tracking** – monitor daily API quota
+- 🔌 **Model Selection** – pick any available Gemini model
 
 ## 🚀 Quick Start
 
-1. **Install Extension**: Load unpacked in `vivaldi://extensions`
-2. **Get API Key**: [Get your free Gemini API key](https://aistudio.google.com/app/apikey)
-3. **Configure**: Enter API key and categories
-4. **Analyze**: Click "Analyze & Preview"
-5. **Apply**: Click "Apply Sorting" to organize!
+1. Load unpacked in `vivaldi://extensions` (Developer mode ON).
+2. [Get a free Gemini API key](https://aistudio.google.com/app/apikey).
+3. Click the extension icon → paste API key → enter categories.
+4. **Analyze** → review → **Apply**.
 
-**For Workspace Mode**: Install the bridge script (see [DOCUMENTATION.md](DOCUMENTATION.md))
-
-## 📖 Full Documentation
-
-See [DOCUMENTATION.md](DOCUMENTATION.md) for:
-- Detailed installation instructions
-- Bridge script setup for Workspace mode
-- Usage guide and tips
-- Troubleshooting
-- Configuration examples
-
-## 🎯 Perfect For
-
-- Managing 200+ tabs across multiple windows
-- Organizing research sessions
-- Separating work and personal browsing
-- Project-based tab management
-- Anyone who loves Vivaldi's power features
+> For Workspace mode, install the bridge script – see [DOCUMENTATION.md](DOCUMENTATION.md).
 
 ## 🔒 Privacy
 
-- API key stored locally only
-- Tab data sent to Gemini for categorization only
-- No external data storage
-- Open source - review the code yourself
+- API key stored locally (chrome.storage.local).
+- Tab titles & URLs sent to Gemini for categorisation only.
+- No external data storage. Fully open source.
 
-## 🙏 Built With
+## 📄 License
 
-- Google Gemini AI
-- Vivaldi Browser APIs
-- Love for productivity tools
+MIT – see [LICENSE](LICENSE).
 
 ---
 
 <div align="center">
-  <p>Built with AI Studio - <a href="https://aistudio.google.com/apps">Start building</a></p>
+  Built with Google Gemini AI for the Vivaldi community
 </div>

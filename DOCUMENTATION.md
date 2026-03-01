@@ -1,203 +1,115 @@
-# 🚀 Vivaldi AI Tab Sorter
+# 🚀 Vivaldi AI Tab Sorter – Documentation
 
-An intelligent browser extension specifically designed for Vivaldi that uses Google's Gemini AI to automatically organize your tabs into Workspaces, Tab Stacks, or separate Windows.
+An intelligent Vivaldi extension that uses Google Gemini AI to organise tabs into Workspaces, Tab Stacks, or separate Windows.
 
 ## ✨ Features
 
-- **AI-Powered Categorization**: Uses Gemini 2.0 Flash to intelligently analyze and categorize tabs based on title and URL
-- **Custom Categories**: Define your own categories (Work, Shopping, Research, Social, etc.)
-- **Logic Rules**: Add custom rules to guide the AI's decision-making
-- **Three Organization Modes**:
-  - 🏆 **Vivaldi Workspaces** (Recommended): Automatically creates/uses Workspaces
-  - 📚 **Tab Stacks**: Groups tabs in your current window
-  - 🪟 **Separate Windows**: Creates one window per category
-- **Duplicate Removal**: Optional toggle to remove duplicate tabs before sorting
-- **Preview Before Apply**: See how tabs will be organized before making changes
-- **Persistent Settings**: All settings are saved automatically
+| Feature | Details |
+|---------|---------|
+| AI categorisation | Gemini analyses tab titles & URLs |
+| Custom categories | Comma‑separated list you define |
+| Logic rules | Natural‑language rules to steer the AI |
+| Three modes | Workspaces · Tab Stacks · Windows |
+| Duplicate removal | Optional toggle before sorting |
+| Preview | See the plan before applying |
+| Persistent settings | Saved via `chrome.storage.local` |
+| Usage tracking | Daily request counter with reset |
+| Model selection | Pick any compatible Gemini model |
 
 ## 📋 Requirements
 
-- Vivaldi Browser (latest version recommended)
-- Google Gemini API Key ([Get one here](https://aistudio.google.com/app/apikey))
-- For Workspace mode: Vivaldi bridge script installation (see below)
+- **Vivaldi Browser** (latest recommended)
+- **Gemini API key** – [get one free](https://aistudio.google.com/app/apikey)
+- For Workspace mode: bridge script installation (see below)
 
 ## 🔧 Installation
 
-### Step 1: Install the Extension
+### Step 1 – Load the extension
 
-1. Download or clone this repository
-2. Open Vivaldi and navigate to `vivaldi://extensions`
-3. Enable "Developer mode" in the top right
-4. Click "Load unpacked"
-5. Select the extension folder
+1. Open `vivaldi://extensions`.
+2. Enable **Developer mode** (top‑right toggle).
+3. Click **Load unpacked** → select this folder.
 
-### Step 2: Install the Vivaldi Bridge Script (For Workspace Mode)
+### Step 2 – Install the bridge script (Workspace mode only)
 
-The bridge script is required to enable the Workspace organization feature. Without it, you can still use Tab Stacks and Separate Windows modes.
+The bridge gives the extension access to `vivaldi.workspaces`. Tab Stacks and Windows modes work without it.
 
 #### Windows
 
-1. **Close Vivaldi completely**
-2. Navigate to Vivaldi's installation directory:
-   ```
-   C:\Users\[YourUsername]\AppData\Local\Vivaldi\Application\[version]\resources\vivaldi
-   ```
-3. **Backup window.html** (make a copy as window.html.backup)
-4. Open `window.html` in a text editor (Notepad, VS Code, etc.)
-5. Find the closing `</body>` tag (usually near the end of the file)
-6. Add this line **before** the `</body>` tag:
-   ```html
-   <script src="ai_bridge.js"></script>
-   ```
-7. Copy `ai_bridge.js` from this extension folder to the same directory
-8. Restart Vivaldi
+```
+%LOCALAPPDATA%\Vivaldi\Application\<version>\resources\vivaldi
+```
+
+1. Close Vivaldi.
+2. Back up `window.html`.
+3. Add before `</body>`: `<script src="ai_bridge.js"></script>`
+4. Copy `ai_bridge.js` into the same folder.
+5. Restart Vivaldi.
 
 #### macOS
 
-1. **Close Vivaldi completely**
-2. Navigate to:
-   ```
-   /Applications/Vivaldi.app/Contents/Versions/[version]/Vivaldi Framework.framework/Resources/vivaldi
-   ```
-3. **Backup window.html** (make a copy as window.html.backup)
-4. Open `window.html` in a text editor
-5. Find the closing `</body>` tag
-6. Add this line **before** the `</body>` tag:
-   ```html
-   <script src="ai_bridge.js"></script>
-   ```
-7. Copy `ai_bridge.js` to the same directory
-8. Restart Vivaldi
+```
+/Applications/Vivaldi.app/Contents/Versions/<version>/Vivaldi Framework.framework/Resources/vivaldi
+```
+
+Same steps as Windows.
 
 #### Linux
 
-1. **Close Vivaldi completely**
-2. Navigate to:
-   ```
-   /opt/vivaldi/resources/vivaldi
-   ```
-   Or if installed as Snap:
-   ```
-   /snap/vivaldi/current/opt/vivaldi/resources/vivaldi
-   ```
-3. **Backup window.html** (you may need sudo):
-   ```bash
-   sudo cp window.html window.html.backup
-   ```
-4. Edit `window.html` with sudo:
-   ```bash
-   sudo nano window.html
-   ```
-5. Find the closing `</body>` tag
-6. Add this line **before** the `</body>` tag:
-   ```html
-   <script src="ai_bridge.js"></script>
-   ```
-7. Copy `ai_bridge.js` to the same directory:
-   ```bash
-   sudo cp /path/to/extension/ai_bridge.js .
-   ```
-8. Restart Vivaldi
+```bash
+cd /opt/vivaldi/resources/vivaldi
+sudo cp window.html window.html.backup
+sudo nano window.html   # add script tag before </body>
+sudo cp /path/to/ai_bridge.js .
+```
 
-**Note**: After Vivaldi updates, you may need to repeat this process as the window.html file might be replaced.
+> After Vivaldi updates you may need to repeat this step.
 
-## 🎯 How to Use
+## 🎯 Usage
 
-1. **Open the Extension**: Click the extension icon in your toolbar
-2. **Enter API Key**: Paste your Gemini API key in the first field
-3. **Set Categories**: Enter categories separated by commas (e.g., "Work, Shopping, Research, Social")
-4. **Add Rules** (Optional): Provide custom logic rules like:
-   - "Always put YouTube in Entertainment unless the title mentions 'Coding', then put it in Work"
-   - "GitHub pages should always go to Work"
-5. **Choose Options**:
-   - Check "Remove duplicate tabs" if you want duplicates removed
-   - Select your preferred organization mode
-6. **Analyze**: Click "🔍 Analyze & Preview" to see how tabs will be organized
-7. **Apply**: Review the preview, then click "✨ Apply Sorting" to organize your tabs
+1. Click the extension icon.
+2. Paste your Gemini API key.
+3. Enter categories (e.g. `Work, Shopping, Research, Social`).
+4. Optionally add logic rules and toggle duplicate removal.
+5. Choose a mode → **Analyze** → review preview → **Apply**.
 
-## 🎨 Organization Modes Explained
+## 🎨 Modes
 
-### Workspaces Mode (Recommended)
-- Creates or uses existing Vivaldi Workspaces matching your category names
-- Moves tabs to the appropriate Workspace
-- Best for maintaining long-term organization
-- Requires bridge script installation
+| Mode | Description | Bridge needed? |
+|------|-------------|:--------------:|
+| Workspaces | Creates/reuses Vivaldi Workspaces | ✅ |
+| Tab Stacks | Coloured groups in current window | ❌ |
+| Windows | One new window per category | ❌ |
 
-### Tab Stacks Mode
-- Creates tab groups/stacks within your current window
-- Groups are labeled with category names
-- No bridge script needed
-- Good for quick visual organization
+## 💡 Tips
 
-### Separate Windows Mode
-- Creates a new window for each category
-- Each window contains only tabs from that category
-- No bridge script needed
-- Useful for working on different projects simultaneously
-
-## 💡 Tips & Best Practices
-
-1. **Start with 3-5 categories** for best results
-2. **Use descriptive category names** that match your workflow
-3. **Add logic rules** for domains you frequently visit
-4. **Test with preview first** before applying changes
-5. **Keep your API key safe** - it's stored locally but be cautious
+- Start with 3–5 categories for best results.
+- Use descriptive names that match your workflow.
+- Add logic rules for frequently visited domains.
+- Always preview before applying.
 
 ## 🔒 Privacy & Security
 
-- Your API key is stored locally in your browser only
-- Tab data is sent to Google's Gemini API for categorization
-- No data is stored on external servers by this extension
-- The extension only accesses tab titles and URLs
+- API key stored locally only.
+- Tab data is sent to Google Gemini for categorisation.
+- No external data storage by this extension.
+- Minimal permissions requested.
 
 ## 🛠️ Troubleshooting
 
-### "Workspace mode requires the Vivaldi bridge script"
-- The bridge script is not installed or not running
-- Follow the bridge script installation instructions above
-- Check browser console (F12) for any errors
+| Problem | Solution |
+|---------|----------|
+| Bridge not responding | Verify `ai_bridge.js` path and restart Vivaldi |
+| API error | Check key validity & quota at [AI Studio](https://aistudio.google.com/) |
+| Tabs not moving | Unpin tabs; avoid incognito tabs |
+| Extension icon blank | Replace placeholder PNGs in `icons/` |
 
-### "Error calling Gemini API"
-- Verify your API key is correct
-- Check your internet connection
-- Ensure you have API quota remaining at [Google AI Studio](https://aistudio.google.com/)
+More detail in [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-### Tabs not moving to workspaces
-- Ensure Vivaldi is fully restarted after installing the bridge script
-- Check that `ai_bridge.js` is in the correct directory
-- Open Vivaldi DevTools (F12) and check Console for errors
+## 🔄 After Vivaldi Updates
 
-### Extension icon not showing
-- The placeholder icons are minimal - you can replace them with custom icons
-- Place 16x16, 48x48, and 128x128 PNG files in the `icons/` folder
-
-## 🔄 Updating After Vivaldi Updates
-
-When Vivaldi updates, the window.html file might be replaced. You'll need to:
-1. Re-add the script tag to the new window.html
-2. Copy ai_bridge.js to the new version's directory
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
+Re‑add the `<script>` tag and copy `ai_bridge.js` to the new version folder.
 
 ## 📄 License
 
-MIT License - See LICENSE file for details
-
-## 🙏 Acknowledgments
-
-- Built with Google Gemini AI
-- Designed specifically for Vivaldi Browser
-- Created to help power users manage hundreds of tabs efficiently
-
-## 📞 Support
-
-If you encounter issues:
-1. Check the Troubleshooting section above
-2. Review browser console for error messages
-3. Open an issue on GitHub with detailed information
-
----
-
-**Made with ❤️ for Vivaldi power users**
+MIT – see [LICENSE](LICENSE).
