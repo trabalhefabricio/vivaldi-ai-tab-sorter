@@ -38,6 +38,11 @@ Or clone the repo directly if you prefer loading from source.
 
 ## 🚀 Quick Start
 
+**Easiest way** — extract the ZIP, then run `install.ps1` (Windows) or `install.sh` (macOS/Linux).
+The script copies files to a permanent location, installs the Vivaldi bridge automatically, opens the extensions page, and copies the path to your clipboard. Just click **"Load unpacked"** and paste.
+
+**Manual way:**
+
 ```text
 1. Open vivaldi://extensions → enable Developer mode → Load unpacked → select the unzipped folder.
 2. Get a free API key from https://aistudio.google.com/app/apikey (or use OpenAI / Claude).

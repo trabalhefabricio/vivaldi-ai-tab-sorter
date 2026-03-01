@@ -1,6 +1,26 @@
 # Quick Installation Guide
 
-## Part 1 – Install the Extension (5 min)
+## One-Step Setup (recommended)
+
+1. **Download** – click the green **Code** button on GitHub → **Download ZIP** → extract.
+2. **Run the setup script** inside the extracted folder:
+   - **Windows**: Right-click `install.ps1` → **Run with PowerShell**
+   - **macOS / Linux**: `chmod +x install.sh && ./install.sh` (Linux bridge may need `sudo`)
+
+The script will:
+- Copy the extension to a permanent folder on your system
+- Auto-install the Vivaldi workspace bridge (if Vivaldi is detected)
+- Open the extensions page and copy the install path to your clipboard
+
+You only need to **enable Developer mode → click "Load unpacked" → paste the path**.
+
+> **After Vivaldi updates**: re-run the setup script to reinstall the bridge for the new version folder.
+
+---
+
+## Manual Installation
+
+### Part 1 – Install the Extension (5 min)
 
 1. **Download** – click the green **Code** button on GitHub → **Download ZIP** → extract.
 2. **Load in browser** – go to `vivaldi://extensions` (Vivaldi) or `chrome://extensions` (Chrome) → toggle **Developer mode** ON → **Load unpacked** → select the extracted folder.

@@ -59,6 +59,8 @@ zip -r "dist/${ZIPNAME}" \
   popup.js \
   background.js \
   ai_bridge.js \
+  install.sh \
+  install.ps1 \
   icons/icon16.png \
   icons/icon48.png \
   icons/icon128.png \
