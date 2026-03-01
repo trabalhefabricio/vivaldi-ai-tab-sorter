@@ -1003,10 +1003,11 @@ fi
     const rules = this.logicRules ? `\n\nCustom rules:\n${this.logicRules}` : '';
     return [
       `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
+      '\nUse the EXACT category names listed above. Every tab MUST be assigned to one of these categories; do not skip any tab.',
       '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
       rules,
       '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
-      '\nReturn ONLY a JSON array: [{"id":<tab_id>,"category":"<Category>"},…]',
+      '\nReturn ONLY a JSON array with one entry per tab: [{"id":<tab_id>,"category":"<Category>"},…]',
     ].join('');
   }
 
@@ -1060,9 +1061,17 @@ fi
     for (const c of this.categories) result[c] = [];
     result['Uncategorized'] = [];
 
-    const lookup = new Map(valid.map(i => [i.id, i.category]));
+    // Case-insensitive category resolver for AI responses
+    const catNorm = new Map(this.categories.map(c => [c.toLowerCase().trim(), c]));
+
+    // Coerce IDs to numbers so string "1" matches numeric 1
+    const lookup = new Map(valid.map(i => [Number(i.id), i.category]));
     for (const t of origTabs) {
-      const cat = lookup.get(t.id);
+      let cat = lookup.get(t.id);
+      if (cat) {
+        cat = cat.trim();
+        if (!result[cat]) cat = catNorm.get(cat.toLowerCase()) || null;
+      }
       (cat && result[cat] ? result[cat] : result['Uncategorized']).push(t);
     }
     return result;

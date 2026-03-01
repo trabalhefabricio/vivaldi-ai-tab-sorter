@@ -21,10 +21,11 @@ function buildPrompt(categories, logicRules, tabsInfo) {
   const rules = logicRules ? `\n\nCustom rules:\n${logicRules}` : '';
   return [
     `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
+    '\nUse the EXACT category names listed above. Every tab MUST be assigned to one of these categories; do not skip any tab.',
     '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
     rules,
     '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
-    '\nReturn ONLY a JSON array: [{"id":<tab_id>,"category":"<Category>"},…]',
+    '\nReturn ONLY a JSON array with one entry per tab: [{"id":<tab_id>,"category":"<Category>"},…]',
   ].join('');
 }
 
@@ -78,9 +79,17 @@ function parseResponse(text, origTabs, categories) {
   for (const c of categories) result[c] = [];
   result['Uncategorized'] = [];
 
-  const lookup = new Map(valid.map(i => [i.id, i.category]));
+  // Case-insensitive category resolver for AI responses
+  const catNorm = new Map(categories.map(c => [c.toLowerCase().trim(), c]));
+
+  // Coerce IDs to numbers so string "1" matches numeric 1
+  const lookup = new Map(valid.map(i => [Number(i.id), i.category]));
   for (const t of origTabs) {
-    const cat = lookup.get(t.id);
+    let cat = lookup.get(t.id);
+    if (cat) {
+      cat = cat.trim();
+      if (!result[cat]) cat = catNorm.get(cat.toLowerCase()) || null;
+    }
     (cat && result[cat] ? result[cat] : result['Uncategorized']).push(t);
   }
   return result;
@@ -202,6 +211,46 @@ console.log('\n  ─ unknown category goes to Uncategorized');
   const result = parseResponse(input, sampleTabs, sampleCategories);
   assertEqual(result['Uncategorized'].length, 1, 'unknown cat → Uncategorized');
   assertEqual(result['Uncategorized'][0].id, 1, 'GitHub went to Uncategorized');
+}
+
+console.log('\n  ─ case-insensitive category matching');
+{
+  const input = '[{"id":1,"category":"dev"},{"id":2,"category":"EMAIL"},{"id":3,"category":"media"}]';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'lowercase "dev" matched Dev');
+  assertEqual(result['Email'].length, 1, 'uppercase "EMAIL" matched Email');
+  assertEqual(result['Media'].length, 1, 'lowercase "media" matched Media');
+  assertEqual(result['Uncategorized'].length, 0, 'no uncategorized with case mismatch');
+}
+
+console.log('\n  ─ string tab IDs coerced to numbers');
+{
+  const input = '[{"id":"1","category":"Dev"},{"id":"2","category":"Email"},{"id":"3","category":"Media"}]';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'string ID "1" matched numeric 1');
+  assertEqual(result['Email'].length, 1, 'string ID "2" matched numeric 2');
+  assertEqual(result['Media'].length, 1, 'string ID "3" matched numeric 3');
+  assertEqual(result['Uncategorized'].length, 0, 'no uncategorized with string IDs');
+}
+
+console.log('\n  ─ category names with surrounding whitespace');
+{
+  const input = '[{"id":1,"category":" Dev "},{"id":2,"category":"Email "},{"id":3,"category":" Media"}]';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'whitespace-padded " Dev " matched Dev');
+  assertEqual(result['Email'].length, 1, 'trailing space "Email " matched Email');
+  assertEqual(result['Media'].length, 1, 'leading space " Media" matched Media');
+  assertEqual(result['Uncategorized'].length, 0, 'no uncategorized with whitespace');
+}
+
+console.log('\n  ─ combined: string IDs + wrong case + whitespace');
+{
+  const input = '[{"id":"1","category":" dev "},{"id":"2","category":"EMAIL"},{"id":"3","category":"media "}]';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'combined issues: " dev " → Dev');
+  assertEqual(result['Email'].length, 1, 'combined issues: "EMAIL" → Email');
+  assertEqual(result['Media'].length, 1, 'combined issues: "media " → Media');
+  assertEqual(result['Uncategorized'].length, 0, 'no uncategorized with combined issues');
 }
 
 console.log('\n  ─ invalid JSON');
@@ -328,6 +377,8 @@ console.log('\n📋 buildPrompt');
   assert(!prompt.includes('Custom rules'), 'no custom rules when empty');
   assert(prompt.includes('Prioritize the tab title'), 'instructs title-first priority');
   assert(prompt.includes('URL only as a secondary signal'), 'URL is secondary signal');
+  assert(prompt.includes('EXACT category names'), 'instructs exact category names');
+  assert(prompt.includes('do not skip any tab'), 'instructs not to skip tabs');
 }
 
 {
