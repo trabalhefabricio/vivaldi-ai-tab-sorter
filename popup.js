@@ -816,7 +816,11 @@ fi
 
 # Try common Vivaldi paths
 TARGET=""
-for BASE in /opt/vivaldi/resources/vivaldi /usr/lib/vivaldi/resources/vivaldi /snap/vivaldi/current/opt/vivaldi/resources/vivaldi /var/lib/flatpak/app/com.vivaldi.Vivaldi/current/active/files/opt/vivaldi/resources/vivaldi; do
+for BASE in \\
+  /opt/vivaldi/resources/vivaldi \\
+  /usr/lib/vivaldi/resources/vivaldi \\
+  /snap/vivaldi/current/opt/vivaldi/resources/vivaldi \\
+  /var/lib/flatpak/app/com.vivaldi.Vivaldi/current/active/files/opt/vivaldi/resources/vivaldi; do
   if [ -f "$BASE/window.html" ]; then
     TARGET="$BASE"
     break
