@@ -271,7 +271,7 @@ console.log('\n  ─ fence-wrapped with trailing whitespace');
 
 console.log('\n  ─ truncated JSON: unterminated string (reported bug)');
 {
-  // AI hit token limit mid-string — "Me  is cut off (should be "Media")
+  // AI hit token limit mid-string — "Me" is cut off (should be "Media")
   const input = '[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Me';
   const result = parseResponse(input, sampleTabs, sampleCategories);
   assertEqual(result['Dev'].length, 1, 'Dev recovered from truncated JSON');
