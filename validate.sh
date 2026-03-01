@@ -10,7 +10,7 @@ echo
 # ── Required files ───────────────────────────────────────────────────────────
 
 echo "📁  Required files"
-for f in manifest.json popup.html popup.js background.js ai_bridge.js \
+for f in manifest.json popup.html popup.js background.js \
          icons/icon16.png icons/icon48.png icons/icon128.png \
          README.md DOCUMENTATION.md LICENSE; do
   if [ -f "$f" ]; then
@@ -49,7 +49,7 @@ echo
 
 echo "🔧  JavaScript syntax"
 if command -v node >/dev/null 2>&1; then
-  for js in popup.js background.js ai_bridge.js; do
+  for js in popup.js background.js; do
     if node -c "$js" 2>/dev/null; then
       echo "  ✓ $js"
     else

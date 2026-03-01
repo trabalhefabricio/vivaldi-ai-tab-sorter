@@ -16,18 +16,6 @@
 | Invalid key format | Key must start with `AI` and be 35+ characters |
 | API error / quota | Check quota at AI Studio; wait for reset or try tomorrow |
 
-## Workspace Mode
-
-| Problem | Fix |
-|---------|-----|
-| Bridge not responding | Verify `ai_bridge.js` in Vivaldi's `resources/vivaldi` folder, script tag in `window.html`, and restart Vivaldi |
-| Tabs not moving | Unpin tabs; avoid incognito tabs; check console for errors |
-
-**Verify bridge is loaded:**
-```
-Open DevTools (F12) → Console → look for "[AI Tab Sorter] Bridge loaded."
-```
-
 ## Tab Sorting
 
 | Problem | Fix |
@@ -35,6 +23,7 @@ Open DevTools (F12) → Console → look for "[AI Tab Sorter] Bridge loaded."
 | Wrong categories | Add more specific logic rules; reduce categories to 3–5 |
 | Some tabs skipped | System tabs (`vivaldi://`, `chrome://`) cannot be moved |
 | Duplicates remain | Extension matches exact URLs only |
+| Tabs not moving | Unpin tabs; avoid incognito tabs; check console for errors |
 
 ## AI Response Errors
 
@@ -49,10 +38,6 @@ Open DevTools (F12) → Console → look for "[AI Tab Sorter] Bridge loaded."
 
 - **200+ tabs** may take 30–60 s to analyse.
 - Avoid rapid successive requests (rate limit: 15 req/min).
-
-## After Vivaldi Updates
-
-Re‑add the `<script src="ai_bridge.js"></script>` tag and copy `ai_bridge.js` to the new version's `resources/vivaldi` folder.
 
 ## Reset Extension
 
@@ -69,5 +54,4 @@ location.reload();
 - [ ] API key entered & valid
 - [ ] Categories defined
 - [ ] Internet connection working
-- [ ] For Workspaces: bridge script installed & Vivaldi restarted
 - [ ] No errors in browser console

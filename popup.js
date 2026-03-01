@@ -32,7 +32,7 @@ class TabSorter {
     this.categories    = [];
     this.logicRules    = '';
     this.removeDups    = false;
-    this.mode          = 'workspaces';
+    this.mode          = 'stacks';
     this.stackScope    = 'current';
     this.selectedModel = 'gemini-2.0-flash';
 
@@ -468,8 +468,7 @@ class TabSorter {
       $('applyBtn').disabled = true;
       this._status('Applying…', 'info');
 
-      if (this.mode === 'workspaces') await this._applyWorkspaces();
-      else if (this.mode === 'stacks') await this._applyStacks();
+      if (this.mode === 'stacks') await this._applyStacks();
       else await this._applyWindows();
 
       this._status('✅ Tabs sorted!', 'success');
@@ -479,16 +478,6 @@ class TabSorter {
       this._status(sanitizeErrorMessage(e.message), 'error');
       $('applyBtn').disabled = false;
     }
-  }
-
-  // ── Workspace Mode ───────────────────────────────────────────────────────
-
-  async _applyWorkspaces() {
-    const resp = await chrome.runtime.sendMessage({
-      action: 'organizeToWorkspaces',
-      categorizedTabs: this.analyzedTabs,
-    });
-    if (!resp?.success) throw new Error(resp?.error || 'Workspace organization failed.');
   }
 
   // ── Tab Stacks Mode ──────────────────────────────────────────────────────

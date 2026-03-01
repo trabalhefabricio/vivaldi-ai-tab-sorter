@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Vivaldi AI Tab Sorter",
-  "version": "2.0.0",
-  "description": "Organize hundreds of tabs into Workspaces, Tab Stacks, or Windows using Google Gemini AI",
+  "version": "2.1.0",
+  "description": "Organize hundreds of tabs into Tab Stacks or Windows using Google Gemini AI — no bridge needed",
   "permissions": [
     "tabs",
     "storage",
