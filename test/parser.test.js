@@ -28,15 +28,21 @@ function buildPrompt(categories, logicRules, tabsInfo) {
 }
 
 function parseResponse(text, origTabs, categories) {
+  // Pre-process: strip outer markdown code fence wrapping
+  let cleaned = text.trim();
+  const fenceRe = /^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```\s*$/;
+  const fenceMatch = cleaned.match(fenceRe);
+  if (fenceMatch) cleaned = fenceMatch[1].trim();
+
   let json = null;
 
-  // Strategy 1 – markdown code block
-  const md = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+  // Strategy 1 – markdown code block (for inner fences)
+  const md = cleaned.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
   if (md) json = md[1];
 
   // Strategy 2 – backtick content without regex match
-  if (!json && text.includes('```')) {
-    const parts = text.split('```');
+  if (!json && cleaned.includes('```')) {
+    const parts = cleaned.split('```');
     if (parts.length >= 3) {
       json = parts[1].replace(/^json\s*/i, '').trim();
     }
@@ -44,12 +50,12 @@ function parseResponse(text, origTabs, categories) {
 
   // Strategy 3 – greedy array extraction
   if (!json) {
-    const m = text.match(/\[[\s\S]*\]/);
+    const m = cleaned.match(/\[[\s\S]*\]/);
     if (m) json = m[0];
   }
 
-  // Strategy 4 – entire text
-  if (!json) json = text.trim();
+  // Strategy 4 – entire cleaned text
+  if (!json) json = cleaned;
 
   if (!json) throw new Error('Could not find JSON in AI response.');
 
@@ -208,6 +214,37 @@ assertThrows(
   'not a JSON array',
   'throws on non-array JSON'
 );
+
+console.log('\n  ─ entire response wrapped in ```json fence (reported bug)');
+{
+  const input = '```json\n[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Media"}]\n```';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev has 1 tab from fence-wrapped response');
+  assertEqual(result['Email'].length, 1, 'Email has 1 tab from fence-wrapped response');
+  assertEqual(result['Media'].length, 1, 'Media has 1 tab from fence-wrapped response');
+}
+
+console.log('\n  ─ fence-wrapped multiline JSON');
+{
+  const input = '```json\n[\n  {"id":1,"category":"Dev"},\n  {"id":2,"category":"Email"},\n  {"id":3,"category":"Media"}\n]\n```';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev has 1 tab from multiline fence');
+  assertEqual(result['Media'].length, 1, 'Media has 1 tab from multiline fence');
+}
+
+console.log('\n  ─ fence-wrapped with no json marker');
+{
+  const input = '```\n[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Media"}]\n```';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev has 1 tab from plain fence');
+}
+
+console.log('\n  ─ fence-wrapped with trailing whitespace');
+{
+  const input = '```json\n[{"id":1,"category":"Dev"},{"id":2,"category":"Email"},{"id":3,"category":"Media"}]\n```\n  ';
+  const result = parseResponse(input, sampleTabs, sampleCategories);
+  assertEqual(result['Dev'].length, 1, 'Dev has 1 tab with trailing whitespace');
+}
 
 // ── Tests: buildPrompt ──────────────────────────────────────────────────────
 

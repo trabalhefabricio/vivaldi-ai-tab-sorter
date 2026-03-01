@@ -9,11 +9,20 @@ const DAILY_LIMIT = 1400;     // stay under Google's 1 500/day free‑tier cap
 const CHUNK_THRESHOLD = 100;  // call AI once if tab count ≤ this
 const CHUNK_SIZE = 80;        // tabs per AI request when chunking
 
-// Animal codenames for API key labels
-const KEY_CODENAMES = {
-  gemini: { emoji: '🦊', name: 'Fox' },
-  openai: { emoji: '🦉', name: 'Owl' },
-  claude: { emoji: '🐬', name: 'Dolphin' },
+// Animal codenames – sequential visual identifiers for saved API keys
+// (not tied to any provider; assigned in order: first saved key = first animal)
+const ANIMAL_CODENAMES = [
+  { emoji: '🦊', name: 'Fox' },
+  { emoji: '🦉', name: 'Owl' },
+  { emoji: '🐬', name: 'Dolphin' },
+  { emoji: '🦜', name: 'Parrot' },
+  { emoji: '🐺', name: 'Wolf' },
+];
+
+const PROVIDER_LABELS = {
+  gemini: 'Gemini',
+  openai: 'OpenAI',
+  claude: 'Claude',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -188,17 +197,19 @@ class TabSorter {
 
   _updateKeyStatus() {
     const keys = [
-      { id: 'geminiKeyStatus', value: this.apiKey,    provider: 'gemini' },
-      { id: 'openaiKeyStatus', value: this.openaiKey, provider: 'openai' },
-      { id: 'claudeKeyStatus', value: this.claudeKey, provider: 'claude' },
+      { id: 'geminiKeyStatus', value: this.apiKey },
+      { id: 'openaiKeyStatus', value: this.openaiKey },
+      { id: 'claudeKeyStatus', value: this.claudeKey },
     ];
+    let animalIdx = 0;
     for (const k of keys) {
       const el = $(k.id);
       if (!el) continue;
-      const cn = KEY_CODENAMES[k.provider];
       if (k.value) {
-        el.textContent = `✓ ${cn.name} saved`;
+        const cn = ANIMAL_CODENAMES[animalIdx % ANIMAL_CODENAMES.length];
+        el.textContent = `✓ ${cn.emoji} ${cn.name}`;
         el.className = 'key-status visible saved';
+        animalIdx++;
       } else {
         el.textContent = '';
         el.className = 'key-status';
@@ -393,12 +404,27 @@ class TabSorter {
   _detectBrowser() {
     this.browser = /Vivaldi/.test(navigator.userAgent) ? 'vivaldi' : 'chrome';
     if (this.browser === 'chrome') {
-      const stackLabel = document.querySelector('label[for="modeStacks"]');
-      if (stackLabel) stackLabel.textContent = stackLabel.textContent.replace('Tab Stacks', 'Tab Groups');
-      const wsLabel = document.querySelector('label[for="modeWorkspaces"]');
-      if (wsLabel && !wsLabel.textContent.includes('Vivaldi only')) {
-        wsLabel.textContent = wsLabel.textContent + ' (Vivaldi only)';
+      // Chrome: rename "Tab Stacks" to "Tab Groups"
+      const stackTitle = document.querySelector('#modeStacks')?.closest('.mode-option')?.querySelector('.mode-title');
+      if (stackTitle) stackTitle.textContent = '📚 Tab Groups';
+      const stackDesc = document.querySelector('#modeStacks')?.closest('.mode-option')?.querySelector('.mode-desc');
+      if (stackDesc) stackDesc.textContent = 'Chrome tab groups with color labels';
+
+      // Disable Workspaces mode in Chrome (Vivaldi only)
+      const wsRadio = $('modeWorkspaces');
+      if (wsRadio) {
+        wsRadio.disabled = true;
+        const wsTitle = wsRadio.closest('.mode-option')?.querySelector('.mode-title');
+        if (wsTitle) wsTitle.textContent = '🏆 Workspaces (Vivaldi only)';
+        const wsDesc = wsRadio.closest('.mode-option')?.querySelector('.mode-desc');
+        if (wsDesc) wsDesc.textContent = 'Not available in Chrome – use Tab Groups or Windows mode';
+        const wsOption = wsRadio.closest('.mode-option');
+        if (wsOption) wsOption.style.opacity = '0.5';
       }
+    } else {
+      // Vivaldi: enhance Tab Stacks description
+      const stackDesc = document.querySelector('#modeStacks')?.closest('.mode-option')?.querySelector('.mode-desc');
+      if (stackDesc) stackDesc.textContent = 'Vivaldi tab stacks with color-coded labels (supports tab piling)';
     }
   }
 
@@ -460,9 +486,9 @@ class TabSorter {
       _version: 1,
       _exported: new Date().toISOString(),
       keys: {
-        fox: this.apiKey,
-        owl: this.openaiKey,
-        dolphin: this.claudeKey,
+        gemini: this.apiKey,
+        openai: this.openaiKey,
+        claude: this.claudeKey,
       },
       provider: this.provider,
       models: {
@@ -502,11 +528,14 @@ class TabSorter {
       if (data._format !== 'vivaldi-ai-tab-sorter-settings') {
         this._status('Invalid settings file.', 'error'); return;
       }
-      // Restore keys
+      // Restore keys (support both old fox/owl/dolphin and new gemini/openai/claude format)
       if (data.keys) {
-        if (data.keys.fox)     { this.apiKey = data.keys.fox;       $('apiKey').value = data.keys.fox; }
-        if (data.keys.owl)     { this.openaiKey = data.keys.owl;    const el = $('openaiKey'); if (el) el.value = data.keys.owl; }
-        if (data.keys.dolphin) { this.claudeKey = data.keys.dolphin; const el = $('claudeKey'); if (el) el.value = data.keys.dolphin; }
+        const geminiKey = data.keys.gemini || data.keys.fox;
+        const openaiKey = data.keys.openai || data.keys.owl;
+        const claudeKey = data.keys.claude || data.keys.dolphin;
+        if (geminiKey)  { this.apiKey = geminiKey;       $('apiKey').value = geminiKey; }
+        if (openaiKey)  { this.openaiKey = openaiKey;    const el = $('openaiKey'); if (el) el.value = openaiKey; }
+        if (claudeKey)  { this.claudeKey = claudeKey;    const el = $('claudeKey'); if (el) el.value = claudeKey; }
       }
       // Restore other settings
       if (data.provider)  { this.provider = data.provider; const el = $('providerSelect'); if (el) el.value = data.provider; }
@@ -974,15 +1003,21 @@ fi
   }
 
   _parseResponse(text, origTabs) {
+    // Pre-process: strip outer markdown code fence wrapping
+    let cleaned = text.trim();
+    const fenceRe = /^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```\s*$/;
+    const fenceMatch = cleaned.match(fenceRe);
+    if (fenceMatch) cleaned = fenceMatch[1].trim();
+
     let json = null;
 
-    // Strategy 1 – markdown code block
-    const md = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+    // Strategy 1 – markdown code block (for inner fences)
+    const md = cleaned.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
     if (md) json = md[1];
 
     // Strategy 2 – backtick content without regex match
-    if (!json && text.includes('```')) {
-      const parts = text.split('```');
+    if (!json && cleaned.includes('```')) {
+      const parts = cleaned.split('```');
       if (parts.length >= 3) {
         json = parts[1].replace(/^json\s*/i, '').trim();
       }
@@ -990,12 +1025,12 @@ fi
 
     // Strategy 3 – greedy array extraction
     if (!json) {
-      const m = text.match(/\[[\s\S]*\]/);
+      const m = cleaned.match(/\[[\s\S]*\]/);
       if (m) json = m[0];
     }
 
-    // Strategy 4 – entire text
-    if (!json) json = text.trim();
+    // Strategy 4 – entire cleaned text
+    if (!json) json = cleaned;
 
     if (!json) throw new Error('Could not find JSON in AI response.');
 
@@ -1213,12 +1248,12 @@ fi
       const activeKey = this.provider === 'openai' ? this.openaiKey
         : this.provider === 'claude' ? this.claudeKey
         : this.apiKey;
-      const cn = KEY_CODENAMES[this.provider];
-      if (!activeKey.trim()) { this._status(`Enter your ${cn.emoji} ${cn.name} key.`, 'error'); return; }
+      const providerLabel = PROVIDER_LABELS[this.provider] || this.provider;
+      if (!activeKey.trim()) { this._status(`Enter your ${providerLabel} API key.`, 'error'); return; }
       if (this.provider === 'gemini') {
         const key = activeKey.trim();
         if (!key.startsWith('AI') || key.length < 35) {
-          this._status(`Invalid ${cn.emoji} ${cn.name} key format.`, 'error'); return;
+          this._status(`Invalid ${providerLabel} key format.`, 'error'); return;
         }
       }
       if (!this.categories.length) { this._status('Enter at least one category.', 'error'); return; }
