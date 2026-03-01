@@ -1046,7 +1046,9 @@ echo "Done! Restart Vivaldi to activate the bridge."
 
       // Remove the blank tab that chrome.windows.create() opened
       const winTabs = await chrome.tabs.query({ windowId: win.id });
-      const blankTab = winTabs.find(t => t.url === 'chrome://newtab/' || t.url === 'about:blank');
+      const blankTab = winTabs.find(t =>
+        !t.url || t.url === '' || t.url === 'chrome://newtab/' || t.url === 'about:blank'
+      );
       if (blankTab && winTabs.length > 1) {
         try { await chrome.tabs.remove(blankTab.id); } catch {}
       }
