@@ -1003,6 +1003,7 @@ fi
     const rules = this.logicRules ? `\n\nCustom rules:\n${this.logicRules}` : '';
     return [
       `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
+      '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
       rules,
       '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
       '\nReturn ONLY a JSON array: [{"id":<tab_id>,"category":"<Category>"},…]',

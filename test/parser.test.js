@@ -21,6 +21,7 @@ function buildPrompt(categories, logicRules, tabsInfo) {
   const rules = logicRules ? `\n\nCustom rules:\n${logicRules}` : '';
   return [
     `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
+    '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
     rules,
     '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
     '\nReturn ONLY a JSON array: [{"id":<tab_id>,"category":"<Category>"},…]',
@@ -325,6 +326,8 @@ console.log('\n📋 buildPrompt');
   assert(prompt.includes('Dev, Email'), 'includes categories');
   assert(prompt.includes('"id": 1'), 'includes tab data');
   assert(!prompt.includes('Custom rules'), 'no custom rules when empty');
+  assert(prompt.includes('Prioritize the tab title'), 'instructs title-first priority');
+  assert(prompt.includes('URL only as a secondary signal'), 'URL is secondary signal');
 }
 
 {
