@@ -8,16 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v3.0.0] - 2026-03-01
 
 ### Added
-- Multi-provider AI support: Google Gemini, OpenAI (GPT-4o / GPT-3.5), and Anthropic Claude
+- Multi-provider AI support: Google Gemini, OpenAI (GPT-4o / GPT-4o-mini / GPT-4.1), and Anthropic Claude (Sonnet 4 / 3.5 Sonnet / 3.5 Haiku)
+- Model selection dropdowns for all three AI providers (Gemini dynamically fetched)
 - Unit test suite with automated validation
 - Browser auto-detection (Vivaldi vs Chrome) with adaptive feature set
 - Smart tab chunking for 100+ tabs (80 tabs per AI request)
 - Extension icon set (16 / 48 / 128 px)
 - UI toggles for duplicate removal and uncategorized tab handling
+- Content Security Policy meta tag restricting API connections
+- GitHub Actions release workflow for tagged versions (`v*` → GitHub Release with zip)
+- Retry logic with exponential backoff for OpenAI and Claude API calls
 
 ### Changed
 - Implemented all answers from the project questionnaire
 - Improved provider-agnostic prompt engineering
+- Window mode creates empty window first to avoid closing source window
+
+### Fixed
+- `ai_bridge.js` now passes `includeUncategorized`/`reassignExisting` from commands
+- Replaced `innerHTML` usage with safe DOM APIs (`textContent`, `replaceChildren`)
+- Window mode blank tab detection handles pending/empty URL states
+- Defensive guard against empty windows array in Tab Stacks "all windows" scope
+- Logic rules input now sanitized consistently with categories input
+
+### Security
+- Added `Content-Security-Policy` meta tag to popup restricting `connect-src` to API domains
+- Sanitized `logicRules` input to strip HTML tags (matching categories sanitization)
 
 ## [v2.1.0] - 2026-03-01
 
@@ -82,8 +98,8 @@ This release consolidates PRs #3 – #8 into a major rewrite.
 - Persistent settings via `chrome.storage.local`
 - Custom sorting rules support
 
-[v3.0.0]: https://github.com/nicholasgriffintn/vivaldi-ai-tab-sorter/compare/v2.1.0...HEAD
-[v2.1.0]: https://github.com/nicholasgriffintn/vivaldi-ai-tab-sorter/compare/v2.0.0...v2.1.0
-[v2.0.0]: https://github.com/nicholasgriffintn/vivaldi-ai-tab-sorter/compare/v1.1.0...v2.0.0
-[v1.1.0]: https://github.com/nicholasgriffintn/vivaldi-ai-tab-sorter/compare/v1.0.0...v1.1.0
-[v1.0.0]: https://github.com/nicholasgriffintn/vivaldi-ai-tab-sorter/releases/tag/v1.0.0
+[v3.0.0]: https://github.com/trabalhefabricio/vivaldi-ai-tab-sorter/compare/v2.1.0...HEAD
+[v2.1.0]: https://github.com/trabalhefabricio/vivaldi-ai-tab-sorter/compare/v2.0.0...v2.1.0
+[v2.0.0]: https://github.com/trabalhefabricio/vivaldi-ai-tab-sorter/compare/v1.1.0...v2.0.0
+[v1.1.0]: https://github.com/trabalhefabricio/vivaldi-ai-tab-sorter/compare/v1.0.0...v1.1.0
+[v1.0.0]: https://github.com/trabalhefabricio/vivaldi-ai-tab-sorter/releases/tag/v1.0.0

@@ -56,8 +56,8 @@ Or clone the repo directly if you prefer loading from source.
 | Provider | Models | Free Tier | API Key |
 |----------|--------|-----------|---------|
 | **Google Gemini** | Gemini 2.0 Flash, 1.5 Pro, etc. | ✅ 1 500 req/day | [Get key](https://aistudio.google.com/app/apikey) |
-| **OpenAI** | GPT-4o-mini | ❌ | [Get key](https://platform.openai.com/api-keys) |
-| **Anthropic Claude** | Claude 4 Sonnet | ❌ | [Get key](https://console.anthropic.com/) |
+| **OpenAI** | GPT-4o-mini, GPT-4o, GPT-4.1-mini, GPT-4.1-nano | ❌ | [Get key](https://platform.openai.com/api-keys) |
+| **Anthropic Claude** | Claude Sonnet 4, 3.5 Sonnet, 3.5 Haiku | ❌ | [Get key](https://console.anthropic.com/) |
 
 Select your provider and model directly in the popup — no config files needed.
 

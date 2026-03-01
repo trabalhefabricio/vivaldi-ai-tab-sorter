@@ -191,7 +191,9 @@ class TabSorter {
     });
 
     $('logicRules').addEventListener('input', e => {
-      this.logicRules = e.target.value;
+      const clean = sanitizeHtmlTags(e.target.value);
+      if (clean !== e.target.value) e.target.value = clean;
+      this.logicRules = clean;
       this._save();
     });
 
@@ -836,45 +838,91 @@ echo "Done! Restart Vivaldi to activate the bridge."
 
   async _callOpenAI(prompt) {
     const url = 'https://api.openai.com/v1/chat/completions';
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.openaiKey}` },
-      body: JSON.stringify({
-        model: this.openaiModel,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error('OpenAI API error: ' + (err.error?.message || res.statusText));
+    const maxRetries = 2;
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        const wait = 30000 * attempt;
+        this._status(`Rate‑limited. Retrying in ${wait / 1000}s… (${attempt + 1}/${maxRetries + 1})`, 'info');
+        await new Promise(r => setTimeout(r, wait));
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.openaiKey}` },
+          body: JSON.stringify({
+            model: this.openaiModel,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const errMsg = err.error?.message || res.statusText;
+          const isRate = res.status === 429 || /rate.?limit/i.test(errMsg);
+          if (isRate && attempt < maxRetries) { lastErr = new Error(errMsg); continue; }
+          throw new Error('OpenAI API error: ' + errMsg);
+        }
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content;
+      } catch (e) {
+        if ((e.message.includes('fetch') || e.message.includes('network')) && attempt < maxRetries) {
+          lastErr = e;
+          continue;
+        }
+        throw e;
+      }
     }
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content;
+    throw lastErr || new Error('OpenAI: failed after retries.');
   }
 
   async _callClaude(prompt) {
     const url = 'https://api.anthropic.com/v1/messages';
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.claudeKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: this.claudeModel,
-        max_tokens: 8192,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error('Claude API error: ' + (err.error?.message || res.statusText));
+    const maxRetries = 2;
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        const wait = 30000 * attempt;
+        this._status(`Rate‑limited. Retrying in ${wait / 1000}s… (${attempt + 1}/${maxRetries + 1})`, 'info');
+        await new Promise(r => setTimeout(r, wait));
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.claudeKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: this.claudeModel,
+            max_tokens: 8192,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const errMsg = err.error?.message || res.statusText;
+          const isRate = res.status === 429 || /rate.?limit/i.test(errMsg);
+          if (isRate && attempt < maxRetries) { lastErr = new Error(errMsg); continue; }
+          throw new Error('Claude API error: ' + errMsg);
+        }
+        const data = await res.json();
+        return data.content?.[0]?.text;
+      } catch (e) {
+        if ((e.message.includes('fetch') || e.message.includes('network')) && attempt < maxRetries) {
+          lastErr = e;
+          continue;
+        }
+        throw e;
+      }
     }
-    const data = await res.json();
-    return data.content?.[0]?.text;
+    throw lastErr || new Error('Claude: failed after retries.');
   }
 
   // ── Analyze Flow ─────────────────────────────────────────────────────────
@@ -977,6 +1025,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
 
     if (this.stackScope === 'all') {
       const wins = await chrome.windows.getAll({ populate: true });
+      if (!wins.length) throw new Error('No browser windows found.');
       targetWin = wins[0].id;
 
       // Move tabs from other windows first
@@ -1042,7 +1091,12 @@ echo "Done! Restart Vivaldi to activate the bridge."
       // source window, the source window closes unexpectedly.
       const win = await chrome.windows.create({ focused: false });
 
-      await chrome.tabs.move(tabs.map(t => t.id), { windowId: win.id, index: -1 });
+      try {
+        await chrome.tabs.move(tabs.map(t => t.id), { windowId: win.id, index: -1 });
+      } catch (e) {
+        console.error('Window mode tab move:', e);
+        // Some tabs may have been closed – skip gracefully
+      }
 
       // Remove the blank tab that chrome.windows.create() opened
       const winTabs = await chrome.tabs.query({ windowId: win.id });

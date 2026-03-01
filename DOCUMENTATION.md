@@ -19,7 +19,7 @@ An intelligent browser extension for **Vivaldi** and **Chrome** that uses AI (Ge
 | Preview | See the plan before applying |
 | Persistent settings | Saved via `chrome.storage.local` |
 | Usage tracking | Daily request counter with reset |
-| Model selection | Pick any compatible Gemini model |
+| Model selection | Pick any compatible model per provider (Gemini, OpenAI, Claude) |
 | Browser detection | Auto‑detects Chrome vs Vivaldi and adjusts available modes |
 
 ## 📋 Requirements
