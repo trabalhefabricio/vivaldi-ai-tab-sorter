@@ -31,10 +31,19 @@
 - 💾 **Persistent Settings** — API keys, categories, and preferences saved automatically
 - 📊 **Usage Tracking** — monitor your daily API quota at a glance
 
+## 📦 Download
+
+Every commit automatically builds an installable `.zip` via GitHub Actions.
+
+1. Go to the [**Actions** tab](../../actions) → click the latest **Build Extension** run → download the **artifact**.
+2. Unzip anywhere on your machine.
+
+Or clone the repo directly if you prefer loading from source.
+
 ## 🚀 Quick Start
 
 ```text
-1. Open vivaldi://extensions → enable Developer mode → Load unpacked → select this folder.
+1. Open vivaldi://extensions → enable Developer mode → Load unpacked → select the unzipped folder.
 2. Get a free API key from https://aistudio.google.com/app/apikey (or use OpenAI / Claude).
 3. Click the extension icon → paste your key → enter your categories.
 4. Hit Analyze → review the preview → Apply.
