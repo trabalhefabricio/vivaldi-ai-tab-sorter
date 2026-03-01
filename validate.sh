@@ -1,97 +1,92 @@
 #!/usr/bin/env bash
-# Validation script for Vivaldi AI Tab Sorter extension
+# validate.sh – quick checks for Vivaldi AI Tab Sorter
 
-echo "🔍 Validating Vivaldi AI Tab Sorter Extension..."
-echo ""
-
+set -euo pipefail
 ERRORS=0
 
-# Check if all required files exist
-echo "📁 Checking required files..."
-REQUIRED_FILES=(
-  "manifest.json"
-  "popup.html"
-  "popup.js"
-  "background.js"
-  "ai_bridge.js"
-  "icons/icon16.png"
-  "icons/icon48.png"
-  "icons/icon128.png"
-  "README.md"
-  "DOCUMENTATION.md"
-  "INSTALL.md"
-  "LICENSE"
-)
+echo "🔍  Validating Vivaldi AI Tab Sorter…"
+echo
 
-for file in "${REQUIRED_FILES[@]}"; do
-  if [ -f "$file" ]; then
-    echo "  ✓ $file exists"
+# ── Required files ───────────────────────────────────────────────────────────
+
+echo "📁  Required files"
+for f in manifest.json popup.html popup.js background.js ai_bridge.js \
+         icons/icon16.png icons/icon48.png icons/icon128.png \
+         README.md DOCUMENTATION.md LICENSE; do
+  if [ -f "$f" ]; then
+    echo "  ✓ $f"
   else
-    echo "  ✗ $file is missing"
+    echo "  ✗ $f  (missing)"
     ERRORS=$((ERRORS + 1))
   fi
 done
 
-echo ""
-echo "📋 Validating manifest.json..."
+echo
 
-# Check if Node.js is available for JSON validation
+# ── Manifest ─────────────────────────────────────────────────────────────────
+
+echo "📋  manifest.json"
 if command -v node >/dev/null 2>&1; then
-  # Check if manifest.json is valid JSON
-  if node -e "JSON.parse(require('fs').readFileSync('manifest.json', 'utf8'))" 2>/dev/null; then
-    echo "  ✓ manifest.json is valid JSON"
+  if node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))" 2>/dev/null; then
+    echo "  ✓ valid JSON"
   else
-    echo "  ✗ manifest.json is not valid JSON"
-    ERRORS=$((ERRORS + 1))
+    echo "  ✗ invalid JSON"; ERRORS=$((ERRORS + 1))
   fi
 
-  # Check manifest version
-  MANIFEST_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('manifest.json', 'utf8')).manifest_version)" 2>/dev/null)
-  if [ "$MANIFEST_VERSION" = "3" ]; then
-    echo "  ✓ Using Manifest V3"
+  V=$(node -e "console.log(JSON.parse(require('fs').readFileSync('manifest.json','utf8')).manifest_version)" 2>/dev/null)
+  if [ "$V" = "3" ]; then
+    echo "  ✓ Manifest V3"
   else
-    echo "  ✗ Not using Manifest V3"
-    ERRORS=$((ERRORS + 1))
+    echo "  ✗ expected Manifest V3, got $V"; ERRORS=$((ERRORS + 1))
   fi
 else
-  echo "  ⚠ Node.js not found - skipping JSON validation"
-  echo "  ℹ Install Node.js for complete validation"
+  echo "  ⚠  Node.js not found – skipping JSON validation"
 fi
 
-echo ""
-echo "🔧 Checking JavaScript syntax..."
+echo
 
-# Check JavaScript files for basic syntax errors
+# ── JavaScript syntax ────────────────────────────────────────────────────────
+
+echo "🔧  JavaScript syntax"
 if command -v node >/dev/null 2>&1; then
-  for jsfile in popup.js background.js ai_bridge.js; do
-    if node -c "$jsfile" 2>/dev/null; then
-      echo "  ✓ $jsfile syntax is valid"
+  for js in popup.js background.js ai_bridge.js; do
+    if node -c "$js" 2>/dev/null; then
+      echo "  ✓ $js"
     else
-      echo "  ✗ $jsfile has syntax errors"
-      ERRORS=$((ERRORS + 1))
+      echo "  ✗ $js  (syntax error)"; ERRORS=$((ERRORS + 1))
     fi
   done
 else
-  echo "  ⚠ Node.js not found - skipping JavaScript syntax check"
+  echo "  ⚠  Node.js not found – skipping"
 fi
 
-echo ""
-echo "📊 File Statistics:"
-echo "  Total JavaScript lines: $(cat *.js | wc -l)"
-echo "  Total HTML lines: $(cat *.html | wc -l)"
-echo "  Documentation lines: $(cat *.md | wc -l)"
+echo
 
-echo ""
+# ── Stats ────────────────────────────────────────────────────────────────────
+
+echo "📊  Stats"
+echo "  JS  lines : $(cat *.js 2>/dev/null | wc -l | tr -d ' ')"
+echo "  HTML lines: $(cat *.html 2>/dev/null | wc -l | tr -d ' ')"
+echo "  Docs lines: $(cat *.md 2>/dev/null | wc -l | tr -d ' ')"
+
+# ── Unit tests ────────────────────────────────────────────────────────────────
+
+echo "🧪  Unit tests"
+if command -v node >/dev/null 2>&1 && [ -f test/parser.test.js ]; then
+  if node test/parser.test.js > /dev/null 2>&1; then
+    echo "  ✓ parser tests"
+  else
+    echo "  ✗ parser tests failed"; ERRORS=$((ERRORS + 1))
+  fi
+else
+  echo "  ⚠  Skipped (Node.js or test file not found)"
+fi
+
+echo
 if [ $ERRORS -eq 0 ]; then
-  echo "✅ All validation checks passed!"
-  echo ""
-  echo "🚀 Extension is ready to install:"
-  echo "   1. Open vivaldi://extensions"
-  echo "   2. Enable Developer mode"
-  echo "   3. Click 'Load unpacked'"
-  echo "   4. Select this directory"
+  echo "✅  All checks passed."
   exit 0
 else
-  echo "❌ Validation failed with $ERRORS error(s)"
+  echo "❌  $ERRORS error(s) found."
   exit 1
 fi

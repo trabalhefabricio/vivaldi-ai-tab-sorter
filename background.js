@@ -1,166 +1,255 @@
-// Background Service Worker for Vivaldi AI Tab Sorter
+'use strict';
 
-// Listen for messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'organizeToWorkspaces') {
-    handleWorkspaceOrganization(request.categorizedTabs)
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true; // Will respond asynchronously
+// ── Message Handler ──────────────────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
+  if (req.action === 'organizeToWorkspaces') {
+    organizeWorkspaces(req.categorizedTabs, req.scope, req.includeUncategorized, req.reassignExisting)
+      .then(r => sendResponse(r))
+      .catch(e => sendResponse({ success: false, error: e.message }));
+    return true;
+  }
+
+  if (req.action === 'checkWorkspaceSupport') {
+    checkWorkspaceSupport()
+      .then(r => sendResponse(r))
+      .catch(() => sendResponse({ available: false, method: 'none' }));
+    return true;
+  }
+
+  if (req.action === 'getBridgeScript') {
+    sendResponse({ script: BRIDGE_SCRIPT_CONTENT });
+    return false;
   }
 });
 
-async function handleWorkspaceOrganization(categorizedTabs) {
-  try {
-    console.log('Starting workspace organization via Chrome Extensions API...');
-    
-    // First, try the new Chrome Extensions API approach (works without bridge)
+// ── Workspace Support Detection ──────────────────────────────────────────────
+
+async function checkWorkspaceSupport() {
+  // Check 1: Direct Vivaldi API in service worker context
+  if (typeof vivaldi !== 'undefined' && vivaldi.workspaces) {
     try {
-      return await organizeViaExtensionsAPI(categorizedTabs);
-    } catch (apiError) {
-      console.log('Extensions API approach failed, trying bridge fallback:', apiError.message);
-      
-      // Fallback to bridge communication method
-      return await organizeViaBridge(categorizedTabs);
-    }
-    
-  } catch (error) {
-    console.error('Error in workspace organization:', error);
-    throw error;
+      await new Promise((resolve, reject) => {
+        vivaldi.workspaces.getAll(ws => {
+          if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+          else resolve(ws);
+        });
+      });
+      return { available: true, method: 'direct' };
+    } catch { /* fall through */ }
   }
+
+  // Check 2: Bridge via storage ping
+  try {
+    await chrome.storage.local.set({
+      workspaceCommand: { action: 'test', timestamp: Date.now() },
+    });
+    await new Promise(r => setTimeout(r, 1500));
+    const { workspaceCommandResult: res } = await chrome.storage.local.get('workspaceCommandResult');
+    await chrome.storage.local.remove(['workspaceCommand', 'workspaceCommandResult']);
+    if (res?.success && res.timestamp > Date.now() - 5000) {
+      return { available: true, method: 'bridge' };
+    }
+  } catch { /* fall through */ }
+
+  return { available: false, method: 'none' };
 }
 
-// New approach: Use Chrome Extensions API directly (no bridge required)
-async function organizeViaExtensionsAPI(categorizedTabs) {
-  console.log('Using Chrome Extensions API for workspace organization...');
-  
-  // Get all current windows to manage workspaces
-  const windows = await chrome.windows.getAll({ populate: true });
-  const currentWindow = await chrome.windows.getCurrent();
-  
-  // Vivaldi supports creating windows with specific properties that act as workspaces
-  // We'll create a separate window for each category
-  
-  const createdWindows = [];
-  
-  for (const [category, tabs] of Object.entries(categorizedTabs)) {
-    if (tabs.length === 0) continue;
-    
-    console.log(`Creating workspace window for category: ${category} with ${tabs.length} tabs`);
-    
-    // Get the first tab to open in the new window
-    const firstTab = tabs[0];
-    
-    // Create a new window with the first tab
-    const newWindow = await chrome.windows.create({
-      url: firstTab.url,
-      focused: false,
-      type: 'normal',
-      // Vivaldi-specific: Set window title/name if available
-      // This helps identify the workspace
-      state: 'normal'
-    });
-    
-    console.log(`Created window ${newWindow.id} for category: ${category}`);
-    createdWindows.push({ windowId: newWindow.id, category: category });
-    
-    // Move remaining tabs to the new window
-    if (tabs.length > 1) {
-      const remainingTabIds = tabs.slice(1).map(t => t.id);
-      
-      try {
-        await chrome.tabs.move(remainingTabIds, {
-          windowId: newWindow.id,
-          index: -1  // Append to end
-        });
-        console.log(`Moved ${remainingTabIds.length} additional tabs to window ${newWindow.id}`);
-      } catch (moveError) {
-        console.error(`Error moving tabs to window ${newWindow.id}:`, moveError);
-      }
+// ── Workspace Organisation ───────────────────────────────────────────────────
+
+async function organizeWorkspaces(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true) {
+  // Approach 1: Direct Vivaldi API (no bridge needed)
+  if (typeof vivaldi !== 'undefined' && vivaldi.workspaces) {
+    try {
+      return await organizeViaDirect(categorized, scope, includeUncategorized, reassignExisting);
+    } catch (e) {
+      console.log('Direct Vivaldi API failed:', e.message);
     }
-    
-    // Close the duplicate tab that was created (if the original tab still exists)
-    if (newWindow.tabs && newWindow.tabs.length > 0) {
-      const newTabId = newWindow.tabs[0].id;
-      // Only close if we're moving existing tabs
-      if (tabs.length > 1 && firstTab.id !== newTabId) {
-        try {
-          await chrome.tabs.remove(newTabId);
-        } catch (e) {
-          // Ignore errors closing the duplicate tab
+  }
+
+  // Approach 2: Bridge communication
+  try {
+    return await organizeViaBridge(categorized, scope, includeUncategorized, reassignExisting);
+  } catch (e) {
+    console.log('Bridge failed:', e.message);
+  }
+
+  throw new Error(
+    'Workspace API not available. Click "Setup Bridge" in the popup to install, then restart Vivaldi.',
+  );
+}
+
+// Direct Vivaldi API (works if vivaldi.workspaces is exposed to extensions)
+async function organizeViaDirect(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true) {
+  const getAll = () => new Promise((resolve, reject) => {
+    vivaldi.workspaces.getAll(ws => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else resolve(ws || []);
+    });
+  });
+  const create = title => new Promise((resolve, reject) => {
+    vivaldi.workspaces.create({ title }, ws => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else if (ws?.id) resolve(ws.id);
+      else reject(new Error('Failed to create workspace'));
+    });
+  });
+  const moveTab = (tabId, wsId) => new Promise(resolve => {
+    if (vivaldi.workspaces.addTab) {
+      vivaldi.workspaces.addTab(wsId, tabId, () => resolve());
+    } else if (typeof vivaldi !== 'undefined' && vivaldi.tabsPrivate?.setWorkspace) {
+      vivaldi.tabsPrivate.setWorkspace(tabId, wsId, () => resolve());
+    } else {
+      resolve();
+    }
+  });
+
+  const existing = await getAll();
+  const nameToId = new Map(existing.map(w => [w.title, w.id]));
+
+  let targetWindowId = null;
+  if (scope === 'current') {
+    const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+    targetWindowId = win.id;
+  }
+
+  for (const [category, tabs] of Object.entries(categorized)) {
+    if (!tabs.length) continue;
+    if (!includeUncategorized && category === 'Uncategorized') continue;
+    let wsId = nameToId.get(category);
+    if (!wsId) {
+      wsId = await create(category);
+      nameToId.set(category, wsId);
+    }
+    for (const t of tabs) {
+      if (scope === 'current' && targetWindowId !== null && t.windowId !== targetWindowId) continue;
+      if (!reassignExisting) {
+        const tab = await chrome.tabs.get(t.id);
+        if (tab.vivExtData) {
+          try {
+            const ext = JSON.parse(tab.vivExtData);
+            // Vivaldi stores the workspace id in ext.group
+            if (ext.group !== undefined && ext.group !== null) continue;
+          } catch { /* not assigned */ }
         }
       }
+      await moveTab(t.id, wsId);
     }
   }
-  
-  console.log(`Successfully created ${createdWindows.length} workspace windows`);
-  
-  // Focus back on original window if it still exists
-  try {
-    await chrome.windows.update(currentWindow.id, { focused: true });
-  } catch (e) {
-    // Original window might have been closed
-  }
-  
-  return {
-    success: true,
-    method: 'extensionsAPI',
-    windowsCreated: createdWindows.length,
-    message: `Created ${createdWindows.length} workspace windows. Each category has its own window acting as a workspace.`
-  };
+  return { success: true, method: 'direct' };
 }
 
-// Fallback: Bridge communication method (requires ai_bridge.js in window.html)
-async function organizeViaBridge(categorizedTabs) {
-  console.log('Attempting to communicate with Vivaldi bridge script...');
-  
-  // First, try to send message to the bridge via storage
+// Bridge communication via storage
+async function organizeViaBridge(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true) {
   await chrome.storage.local.set({
     workspaceCommand: {
       action: 'organize',
-      categorizedTabs: categorizedTabs,
-      timestamp: Date.now()
-    }
+      categorizedTabs: categorized,
+      includeUncategorized,
+      reassignExisting,
+      scope,
+      timestamp: Date.now(),
+    },
   });
-  
-  console.log('Workspace command sent to storage, waiting for bridge response...');
-  
-  // Wait for the bridge to process (increased from 1s to 2s for reliability)
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Check if the bridge responded
-  const result = await chrome.storage.local.get('workspaceCommandResult');
-  
-  if (result.workspaceCommandResult && 
-      result.workspaceCommandResult.timestamp > Date.now() - 5000) {
-    console.log('Bridge responded:', result.workspaceCommandResult);
-    
-    // Clear the command and result
+
+  await new Promise(r => setTimeout(r, 2000));
+
+  const { workspaceCommandResult: res } = await chrome.storage.local.get('workspaceCommandResult');
+
+  if (res && res.timestamp > Date.now() - 5000) {
     await chrome.storage.local.remove(['workspaceCommand', 'workspaceCommandResult']);
-    
-    if (result.workspaceCommandResult.success) {
-      return { success: true, method: 'bridge' };
-    } else {
-      throw new Error(result.workspaceCommandResult.error || 'Workspace operation failed');
-    }
+    if (res.success) return { success: true, method: 'bridge' };
+    throw new Error(res.error || 'Bridge operation failed.');
   }
-  
-  // If no response from bridge, throw error
-  console.error('No response from Vivaldi bridge script');
-  throw new Error('Vivaldi bridge script not responding. Using fallback method instead.');
+
+  throw new Error('Bridge not responding.');
 }
 
-// Monitor storage changes for bridge communication
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.workspaceCommandResult) {
-    console.log('Workspace command result received:', changes.workspaceCommandResult.newValue);
-  }
-});
+// ── Bridge Script Content (embedded for setup helper) ────────────────────────
 
-// Installation handler
-chrome.runtime.onInstalled.addListener((details) => {
+const BRIDGE_SCRIPT_CONTENT = `// ai_bridge.js – Vivaldi Workspace Bridge (embedded)
+// DISCLAIMER: This script modifies Vivaldi's internal window.html.
+// It is provided under the MIT license. Use at your own risk.
+// The authors are not responsible for any issues caused by
+// modifying browser internal files. Always back up window.html first.
+// See the LICENSE file for full license terms.
+(function () {
+  'use strict';
+  if (typeof vivaldi === 'undefined' || !vivaldi.workspaces) {
+    console.warn('[AI Tab Sorter] vivaldi.workspaces not available – bridge inactive.');
+    return;
+  }
+  console.log('[AI Tab Sorter] Bridge loaded.');
+
+  chrome.storage.onChanged.addListener(async (changes, ns) => {
+    if (ns !== 'local' || !changes.workspaceCommand?.newValue) return;
+    const cmd = changes.workspaceCommand.newValue;
+    try {
+      if (cmd.action === 'test') {
+        await respond({ success: true, message: 'Bridge OK' });
+      } else if (cmd.action === 'organize') {
+        await organise(cmd.categorizedTabs, cmd.includeUncategorized, cmd.reassignExisting);
+        await respond({ success: true });
+      }
+    } catch (err) {
+      console.error('[AI Tab Sorter] Bridge error:', err);
+      await respond({ success: false, error: err.message });
+    }
+  });
+
+  async function respond(payload) {
+    await chrome.storage.local.set({
+      workspaceCommandResult: { ...payload, timestamp: Date.now() },
+    });
+  }
+
+  function getWorkspaces() {
+    return new Promise(resolve => {
+      vivaldi.workspaces.getAll(ws => resolve(ws || []));
+    });
+  }
+  function createWorkspace(title) {
+    return new Promise((resolve, reject) => {
+      vivaldi.workspaces.create({ title }, ws => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else if (ws?.id) resolve(ws.id);
+        else reject(new Error('Failed to create workspace'));
+      });
+    });
+  }
+  function moveTab(tabId, workspaceId) {
+    return new Promise(resolve => {
+      if (vivaldi.workspaces.addTab) {
+        vivaldi.workspaces.addTab(workspaceId, tabId, () => resolve());
+      } else if (vivaldi.tabsPrivate?.setWorkspace) {
+        vivaldi.tabsPrivate.setWorkspace(tabId, workspaceId, () => resolve());
+      } else {
+        resolve();
+      }
+    });
+  }
+
+  async function organise(categorized, includeUncategorized = false, reassignExisting = true) {
+    const existing = await getWorkspaces();
+    const nameToId = new Map(existing.map(w => [w.title, w.id]));
+    for (const [category, tabs] of Object.entries(categorized)) {
+      if (!tabs.length) continue;
+      if (!includeUncategorized && category === 'Uncategorized') continue;
+      let wsId = nameToId.get(category);
+      if (!wsId) {
+        wsId = await createWorkspace(category);
+        nameToId.set(category, wsId);
+      }
+      for (const t of tabs) { await moveTab(t.id, wsId); }
+    }
+  }
+})();
+`;
+
+// ── Lifecycle ────────────────────────────────────────────────────────────────
+
+chrome.runtime.onInstalled.addListener(details => {
   if (details.reason === 'install') {
-    console.log('Vivaldi AI Tab Sorter installed!');
-    // Extension installed successfully - users can access documentation from the extension folder
+    console.log('Vivaldi AI Tab Sorter installed.');
   }
 });

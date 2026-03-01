@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate
+        run: bash validate.sh
+
+      - name: Run tests
+        run: node test/parser.test.js
+
+      - name: Read version from manifest
+        id: version
+        run: |
+          VERSION=$(node -pe "JSON.parse(require('fs').readFileSync('manifest.json','utf8')).version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Package extension
+        run: |
+          mkdir -p dist
+          zip -r "dist/vivaldi-ai-tab-sorter-v${{ steps.version.outputs.version }}.zip" \
+            manifest.json \
+            popup.html \
+            popup.js \
+            background.js \
+            ai_bridge.js \
+            icons/icon16.png \
+            icons/icon48.png \
+            icons/icon128.png \
+            LICENSE \
+            README.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

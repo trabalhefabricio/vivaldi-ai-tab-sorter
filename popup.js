@@ -1,1181 +1,1266 @@
-// Popup.js - Main logic for Vivaldi AI Tab Sorter
+'use strict';
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const GROUP_COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
+const RPM_INTERVAL_MS = 4000; // 15 RPM → one request every 4 s
+const DAILY_LIMIT = 1400;     // stay under Google's 1 500/day free‑tier cap
+const CHUNK_THRESHOLD = 100;  // call AI once if tab count ≤ this
+const CHUNK_SIZE = 80;        // tabs per AI request when chunking
+
+// Animal codenames for API key labels
+const KEY_CODENAMES = {
+  gemini: { emoji: '🦊', name: 'Fox' },
+  openai: { emoji: '🦉', name: 'Owl' },
+  claude: { emoji: '🐬', name: 'Dolphin' },
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function $(id) { return document.getElementById(id); }
+
+function sanitizeHtmlTags(str) {
+  let prev;
+  do { prev = str; str = str.replace(/<[^>]*>/g, ''); } while (str !== prev);
+  return str;
+}
+
+function sanitizeErrorMessage(msg) {
+  if (!msg) return 'An unknown error occurred';
+  let s = msg.replace(/AI[a-zA-Z0-9_-]{28,}/g, '[REDACTED]');
+  s = s.replace(/https?:\/\/[^\s]+\?[^\s]+/g, '[URL]');
+  return s.length > 250 ? s.slice(0, 250) + '…' : s;
+}
+
+// ── TabSorter ────────────────────────────────────────────────────────────────
 
 class TabSorter {
   constructor() {
-    this.apiKey = '';
-    this.categories = [];
-    this.logicRules = '';
-    this.removeDuplicates = false;
-    this.mode = 'workspaces';
-    this.stackScope = 'current'; // 'current' or 'all' - for stack mode options
-    this.analyzedTabs = null;
-    this.allTabs = [];
-    this.selectedModel = 'gemini-1.5-flash'; // Default to stable model
-    this.availableModels = []; // Will be populated from API
-    
-    // Colors available for tab groups in Chrome/Vivaldi
-    this.availableColors = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
-    
-    // Rate limiting for free tier (15 RPM, 1500 RPD)
-    this.lastRequestTime = 0;
-    this.minRequestInterval = 4000; // 4 seconds between requests (15 RPM = 1 request per 4s)
-    this.requestCount = 0;
-    this.dailyRequestLimit = 1400; // Stay under 1500/day limit
-    
-    this.init();
+    this.apiKey        = '';
+    this.categories    = [];
+    this.logicRules    = '';
+    this.removeDups    = false;
+    this.mode          = 'stacks';
+    this.stackScope    = 'current';
+    this.selectedModel = 'gemini-2.0-flash';
+
+    this.includeUncategorized = false;
+    this.reassignExisting     = true;
+    this.workspaceScope       = 'all';
+    this.autoClose            = true;
+    this.provider             = 'gemini';
+    this.openaiKey            = '';
+    this.claudeKey            = '';
+    this.openaiModel          = 'gpt-4o-mini';
+    this.claudeModel          = 'claude-sonnet-4-20250514';
+
+    this.analyzedTabs  = null;
+    this.allTabs       = [];
+
+    this.lastReqTime   = 0;
+    this.reqCount      = 0;
+
+    this._init();
   }
-  
-  async init() {
-    // Load saved settings and request tracking
-    await this.loadSettings();
-    await this.loadRequestTracking();
-    
-    // Setup event listeners
-    this.setupEventListeners();
+
+  // ── Initialisation ───────────────────────────────────────────────────────
+
+  async _init() {
+    await this._loadSettings();
+    await this._loadTracking();
+    this._bind();
+    this._detectBrowser();
+    await this._checkVivaldiVersion();
+    await this._autoFetchModels();
   }
-  
-  async loadRequestTracking() {
+
+  // ── Persistence ──────────────────────────────────────────────────────────
+
+  async _loadSettings() {
     try {
-      const data = await chrome.storage.local.get(['requestCount', 'lastResetDate']);
-      
-      // Reset counter if it's a new day
-      const today = new Date().toDateString();
-      if (data.lastResetDate !== today) {
-        this.requestCount = 0;
-        await chrome.storage.local.set({
-          requestCount: 0,
-          lastResetDate: today
-        });
-      } else {
-        this.requestCount = data.requestCount || 0;
-      }
-    } catch (error) {
-      console.error('Error loading request tracking:', error);
-      this.requestCount = 0;
-    }
-  }
-  
-  async updateRequestTracking() {
-    this.requestCount++;
-    try {
-      await chrome.storage.local.set({
-        requestCount: this.requestCount,
-        lastResetDate: new Date().toDateString()
-      });
-    } catch (error) {
-      console.error('Error updating request tracking:', error);
-    }
-  }
-  
-  async resetRequestCounter() {
-    try {
-      const oldCount = this.requestCount;
-      this.requestCount = 0;
-      await chrome.storage.local.set({
-        requestCount: 0,
-        lastResetDate: new Date().toDateString()
-      });
-      // Update the usage display to show reset confirmation
-      const usageInfoDiv = document.getElementById('usageInfo');
-      const usageText = document.getElementById('usageText');
-      usageText.innerHTML = `✓ Counter reset from ${oldCount} to 0`;
-      this.showStatus(`✓ Request counter reset successfully. You can now make API requests.`, 'success');
-      console.log(`Request counter manually reset by user from ${oldCount} to 0`);
-      
-      // Update the usage display after 3 seconds to show current state
-      setTimeout(() => {
-        this.updateUsageInfo();
-      }, 3000);
-    } catch (error) {
-      console.error('Error resetting request counter:', error);
-      this.showStatus('Error resetting counter. Please try again.', 'error');
-    }
-  }
-  
-  async loadSettings() {
-    try {
-      const data = await chrome.storage.local.get([
-        'apiKey', 
-        'categories', 
-        'logicRules', 
-        'removeDuplicates', 
-        'mode',
-        'stackScope',
-        'selectedModel'
+      const d = await chrome.storage.local.get([
+        'apiKey', 'categories', 'logicRules',
+        'removeDuplicates', 'mode', 'stackScope', 'selectedModel',
+        'includeUncategorized', 'reassignExisting', 'workspaceScope',
+        'autoClose', 'provider', 'openaiKey', 'claudeKey',
+        'openaiModel', 'claudeModel',
       ]);
-      
-      // Restore settings to UI
-      if (data.apiKey) {
-        document.getElementById('apiKey').value = data.apiKey;
-        this.apiKey = data.apiKey;
+      if (d.apiKey)            { $('apiKey').value = d.apiKey;            this.apiKey = d.apiKey; }
+      if (d.selectedModel)     { $('modelSelect').value = d.selectedModel; this.selectedModel = d.selectedModel; }
+      if (d.categories)        { $('categories').value = d.categories;   this.categories = d.categories.split(',').map(c => c.trim()).filter(Boolean); }
+      if (d.logicRules)        { $('logicRules').value = d.logicRules;   this.logicRules = d.logicRules; }
+      if (d.removeDuplicates != null) { $('removeDuplicates').checked = d.removeDuplicates; this.removeDups = d.removeDuplicates; }
+      if (d.stackScope)        { const el = $(d.stackScope === 'all' ? 'stackAllWindows' : 'stackCurrentWindow'); if (el) el.checked = true; this.stackScope = d.stackScope; }
+      if (d.mode) {
+        const r = $('mode' + d.mode.charAt(0).toUpperCase() + d.mode.slice(1));
+        if (r) { r.checked = true; this.mode = d.mode; }
       }
-      
-      if (data.selectedModel) {
-        document.getElementById('modelSelect').value = data.selectedModel;
-        this.selectedModel = data.selectedModel;
-      }
-      
-      if (data.categories) {
-        document.getElementById('categories').value = data.categories;
-        this.categories = data.categories.split(',').map(c => c.trim()).filter(c => c);
-      }
-      
-      if (data.logicRules) {
-        document.getElementById('logicRules').value = data.logicRules;
-        this.logicRules = data.logicRules;
-      }
-      
-      if (data.removeDuplicates !== undefined) {
-        document.getElementById('removeDuplicates').checked = data.removeDuplicates;
-        this.removeDuplicates = data.removeDuplicates;
-      }
-      
-      if (data.stackScope) {
-        const scopeRadio = document.getElementById(data.stackScope === 'all' ? 'stackAllWindows' : 'stackCurrentWindow');
-        if (scopeRadio) scopeRadio.checked = true;
-        this.stackScope = data.stackScope;
-      }
-      
-      if (data.mode) {
-        const modeRadio = document.getElementById(`mode${this.capitalizeFirst(data.mode)}`);
-        if (modeRadio) {
-          modeRadio.checked = true;
-          this.mode = data.mode;
-        }
-      }
-      
-      // Update usage info display
-      this.updateUsageInfo();
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
+      if (d.includeUncategorized != null) { const el = $('includeUncategorized'); if (el) el.checked = d.includeUncategorized; this.includeUncategorized = d.includeUncategorized; }
+      if (d.reassignExisting != null) { const el = $('reassignExisting'); if (el) el.checked = d.reassignExisting; this.reassignExisting = d.reassignExisting; }
+      if (d.workspaceScope) { const el = $(d.workspaceScope === 'all' ? 'workspaceScopeAll' : 'workspaceScopeCurrent'); if (el) el.checked = true; this.workspaceScope = d.workspaceScope; }
+      if (d.autoClose != null) { const el = $('autoClose'); if (el) el.checked = d.autoClose; this.autoClose = d.autoClose; }
+      if (d.provider) { const el = $('providerSelect'); if (el) el.value = d.provider; this.provider = d.provider; }
+      if (d.openaiKey) { const el = $('openaiKey'); if (el) el.value = d.openaiKey; this.openaiKey = d.openaiKey; }
+      if (d.claudeKey) { const el = $('claudeKey'); if (el) el.value = d.claudeKey; this.claudeKey = d.claudeKey; }
+      if (d.openaiModel) { const el = $('openaiModelSelect'); if (el) el.value = d.openaiModel; this.openaiModel = d.openaiModel; }
+      if (d.claudeModel) { const el = $('claudeModelSelect'); if (el) el.value = d.claudeModel; this.claudeModel = d.claudeModel; }
+      this._refreshUsage();
+      this._updateKeyStatus();
+    } catch (e) { console.error('loadSettings:', e); }
   }
-  
-  updateUsageInfo() {
-    const usageInfoDiv = document.getElementById('usageInfo');
-    const usageText = document.getElementById('usageText');
-    
-    if (this.requestCount > 0) {
-      usageInfoDiv.style.display = 'block';
-      const percentUsed = Math.round((this.requestCount / this.dailyRequestLimit) * 100);
-      let color = 'rgba(72, 187, 120, 0.9)'; // green
-      
-      if (percentUsed > 80) {
-        color = 'rgba(245, 101, 101, 0.9)'; // red
-      } else if (percentUsed > 60) {
-        color = 'rgba(237, 137, 54, 0.9)'; // orange
-      }
-      
-      usageText.innerHTML = `📊 API Usage Today: <span style="color: ${color}; font-weight: bold;">${this.requestCount}/${this.dailyRequestLimit}</span> requests (${percentUsed}%) • Free tier resets daily`;
-    } else {
-      usageInfoDiv.style.display = 'none';
-    }
-  }
-  
-  setupEventListeners() {
-    // Save settings on change
-    document.getElementById('apiKey').addEventListener('input', (e) => {
-      // Trim whitespace from API key to prevent authentication failures with Google's API
-      this.apiKey = e.target.value.trim();
-      this.saveSettings();
-    });
-    
-    document.getElementById('categories').addEventListener('input', (e) => {
-      // Sanitize category input - remove any HTML/script tags repeatedly to handle nested tags
-      let sanitized = e.target.value;
-      let previousValue;
-      // Keep removing tags until no more tags are found (handles nested tags)
-      do {
-        previousValue = sanitized;
-        sanitized = sanitized.replace(/<[^>]*>/g, '');
-      } while (sanitized !== previousValue);
-      
-      if (sanitized !== e.target.value) {
-        e.target.value = sanitized;
-      }
-      this.categories = sanitized.split(',').map(c => c.trim()).filter(c => c);
-      this.saveSettings();
-    });
-    
-    document.getElementById('logicRules').addEventListener('input', (e) => {
-      this.logicRules = e.target.value;
-      this.saveSettings();
-    });
-    
-    document.getElementById('removeDuplicates').addEventListener('change', (e) => {
-      this.removeDuplicates = e.target.checked;
-      this.saveSettings();
-    });
-    
-    document.getElementById('modelSelect').addEventListener('change', (e) => {
-      this.selectedModel = e.target.value;
-      this.saveSettings();
-    });
-    
-    document.querySelectorAll('input[name="mode"]').forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        if (e.target.checked) {
-          this.mode = e.target.value;
-          // Show/hide stack options based on mode selection
-          const stackOptionsSection = document.getElementById('stackOptionsSection');
-          if (stackOptionsSection) {
-            stackOptionsSection.style.display = e.target.value === 'stacks' ? 'block' : 'none';
-          }
-          this.saveSettings();
-        }
-      });
-    });
-    
-    // Stack scope options
-    document.querySelectorAll('input[name="stackScope"]').forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        if (e.target.checked) {
-          this.stackScope = e.target.value;
-          this.saveSettings();
-        }
-      });
-    });
-    
-    // Show/hide stack options on initial load
-    const currentMode = document.querySelector('input[name="mode"]:checked');
-    const stackOptionsSection = document.getElementById('stackOptionsSection');
-    if (currentMode && stackOptionsSection) {
-      stackOptionsSection.style.display = currentMode.value === 'stacks' ? 'block' : 'none';
-    }
-    
-    // Action buttons
-    document.getElementById('analyzeBtn').addEventListener('click', () => this.analyze());
-    document.getElementById('applyBtn').addEventListener('click', () => this.apply());
-    
-    // Reset counter button
-    document.getElementById('resetCounter').addEventListener('click', () => {
-      this.resetRequestCounter();
-    });
-    
-    // Refresh models button
-    document.getElementById('refreshModelsBtn').addEventListener('click', () => {
-      this.fetchAvailableModels();
-    });
-  }
-  
-  async fetchAvailableModels() {
-    if (!this.apiKey || !this.apiKey.trim()) {
-      this.showStatus('Please enter your API key first to fetch available models', 'error');
-      return;
-    }
-    
-    try {
-      this.showStatus('Fetching available models from Google...', 'info');
-      document.getElementById('refreshModelsBtn').disabled = true;
-      
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch models: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      // Filter for generative models that support generateContent
-      const generativeModels = data.models?.filter(model => 
-        model.supportedGenerationMethods?.includes('generateContent') &&
-        model.name.includes('gemini')
-      ) || [];
-      
-      if (generativeModels.length === 0) {
-        this.showStatus('No compatible models found', 'error');
-        return;
-      }
-      
-      // Update dropdown with fetched models
-      const modelSelect = document.getElementById('modelSelect');
-      const currentValue = modelSelect.value;
-      modelSelect.innerHTML = '';
-      
-      generativeModels.forEach(model => {
-        const modelName = model.name.replace('models/', '');
-        const option = document.createElement('option');
-        option.value = modelName;
-        
-        // Add helpful descriptions based on model name
-        let description = '';
-        if (modelName.includes('flash')) {
-          description = ' (Fast & High Quota)';
-        } else if (modelName.includes('pro')) {
-          description = ' (More Capable)';
-        } else if (modelName.includes('exp')) {
-          description = ' (Experimental)';
-        }
-        
-        option.textContent = modelName + description;
-        modelSelect.appendChild(option);
-      });
-      
-      // Restore previous selection if it exists in the new list
-      if (currentValue && Array.from(modelSelect.options).some(opt => opt.value === currentValue)) {
-        modelSelect.value = currentValue;
-      } else if (generativeModels.length > 0) {
-        // Default to first model if previous selection not found
-        const firstModelName = generativeModels[0].name.replace('models/', '');
-        modelSelect.value = firstModelName;
-        this.selectedModel = firstModelName;
-        this.saveSettings();
-      }
-      
-      this.availableModels = generativeModels;
-      this.showStatus(`✓ Found ${generativeModels.length} compatible models`, 'success');
-      console.log('Available models:', generativeModels.map(m => m.name));
-      
-    } catch (error) {
-      console.error('Error fetching models:', error);
-      this.showStatus(`Error fetching models: ${error.message}`, 'error');
-    } finally {
-      document.getElementById('refreshModelsBtn').disabled = false;
-    }
-  }
-  
-  async saveSettings() {
+
+  async _save() {
     try {
       await chrome.storage.local.set({
         apiKey: this.apiKey,
         categories: this.categories.join(', '),
         logicRules: this.logicRules,
-        removeDuplicates: this.removeDuplicates,
+        removeDuplicates: this.removeDups,
         mode: this.mode,
         stackScope: this.stackScope,
-        selectedModel: this.selectedModel
+        selectedModel: this.selectedModel,
+        includeUncategorized: this.includeUncategorized,
+        reassignExisting: this.reassignExisting,
+        workspaceScope: this.workspaceScope,
+        autoClose: this.autoClose,
+        provider: this.provider,
+        openaiKey: this.openaiKey,
+        claudeKey: this.claudeKey,
+        openaiModel: this.openaiModel,
+        claudeModel: this.claudeModel,
       });
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    }
+      this._updateKeyStatus();
+    } catch (e) { console.error('saveSettings:', e); }
   }
-  
-  async analyze() {
+
+  // ── Request Tracking ─────────────────────────────────────────────────────
+
+  async _loadTracking() {
     try {
-      // Validate inputs
-      if (!this.apiKey || !this.apiKey.trim()) {
-        this.showStatus('Please enter your Gemini API key', 'error');
-        return;
-      }
-      
-      // Validate API key format (Gemini API keys typically start with "AI" and are 39+ characters)
-      const trimmedKey = this.apiKey.trim();
-      if (!trimmedKey.startsWith('AI') || trimmedKey.length < 35) {
-        this.showStatus('Invalid API key format. Please check your Gemini API key.', 'error');
-        return;
-      }
-      
-      if (this.categories.length === 0) {
-        this.showStatus('Please enter at least one category', 'error');
-        return;
-      }
-      
-      // Check daily request limit for free tier
-      if (this.requestCount >= this.dailyRequestLimit) {
-        console.warn(`Local request counter at ${this.requestCount}/${this.dailyRequestLimit}. Blocking request.`);
-        this.showStatus(`⚠️ Local daily limit reached (${this.requestCount}/${this.dailyRequestLimit} requests). This is the extension's tracker, not Google's limit. Click "Reset Counter" below if this seems wrong, or wait until tomorrow for automatic reset.`, 'error');
-        document.getElementById('analyzeBtn').disabled = false;
-        // Make sure usage info is visible so user can see reset button
-        this.updateUsageInfo();
-        return;
-      }
-      
-      // Check time since last request (rate limiting)
-      const timeSinceLastRequest = Date.now() - this.lastRequestTime;
-      if (timeSinceLastRequest < this.minRequestInterval && this.lastRequestTime > 0) {
-        const waitTime = Math.ceil((this.minRequestInterval - timeSinceLastRequest) / 1000);
-        this.showStatus(`⏳ Rate limiting: Please wait ${waitTime}s before making another request (free tier: 15 requests/minute max)`, 'info');
-        
-        // Wait and then proceed
-        await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
-      }
-      
-      this.showStatus('Collecting tabs from all windows...', 'info');
-      document.getElementById('analyzeBtn').disabled = true;
-      
-      // Collect all tabs from all windows
-      this.allTabs = await this.getAllTabs();
-      
-      if (this.allTabs.length === 0) {
-        this.showStatus('No tabs found', 'error');
-        document.getElementById('analyzeBtn').disabled = false;
-        return;
-      }
-      
-      // Estimate token usage and warn if large
-      const estimatedTokens = this.estimateTokens(this.allTabs);
-      if (estimatedTokens > 100000) {
-        this.showStatus(`⚠️ Large request (~${Math.round(estimatedTokens / 1000)}k tokens). Consider closing some tabs. Free tier limit: 1M tokens/minute.`, 'info');
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Give user time to read
-      }
-      
-      this.showStatus(`Found ${this.allTabs.length} tabs. Analyzing with AI... (Request ${this.requestCount + 1}/${this.dailyRequestLimit} today)`, 'info');
-      
-      // Remove duplicates if requested
-      let tabsToAnalyze = this.allTabs;
-      if (this.removeDuplicates) {
-        tabsToAnalyze = this.findUniqueTabs(this.allTabs);
-        this.showStatus(`Removed ${this.allTabs.length - tabsToAnalyze.length} duplicates. Analyzing ${tabsToAnalyze.length} tabs...`, 'info');
-      }
-      
-      // Analyze tabs with Gemini
-      this.analyzedTabs = await this.analyzeTabsWithGemini(tabsToAnalyze);
-      
-      // Show preview
-      this.showPreview(this.analyzedTabs);
-      
-      // Enable apply button
-      document.getElementById('applyBtn').disabled = false;
-      document.getElementById('analyzeBtn').disabled = false;
-      
-      // Update usage info
-      this.updateUsageInfo();
-      
-      this.showStatus('Analysis complete! Review the preview and click "Apply Sorting"', 'success');
-      
-    } catch (error) {
-      console.error('Error analyzing tabs:', error);
-      // Sanitize error message to avoid exposing sensitive information like API keys
-      const sanitizedMessage = this.sanitizeErrorMessage(error.message);
-      this.showStatus(`Error: ${sanitizedMessage}`, 'error');
-      document.getElementById('analyzeBtn').disabled = false;
-    }
-  }
-  
-  // Estimate token usage for a tab list (rough estimation)
-  estimateTokens(tabs) {
-    // Rough estimation: ~4 chars per token
-    // Title + URL + JSON structure overhead
-    let totalChars = 0;
-    tabs.forEach(tab => {
-      totalChars += (tab.title?.length || 0) + (tab.url?.length || 0) + 50; // 50 for JSON overhead
-    });
-    
-    // Add prompt overhead (~500 tokens)
-    const promptOverhead = 2000; // chars
-    totalChars += promptOverhead;
-    
-    // Convert to tokens (rough: 4 chars = 1 token)
-    return Math.ceil(totalChars / 4);
-  }
-  
-  async getAllTabs() {
-    try {
-      // Get all tabs from all windows
-      const tabs = await chrome.tabs.query({});
-      return tabs.map(tab => ({
-        id: tab.id,
-        title: tab.title || '',
-        url: tab.url || '',
-        windowId: tab.windowId,
-        index: tab.index
-      }));
-    } catch (error) {
-      console.error('Error getting tabs:', error);
-      throw error;
-    }
-  }
-  
-  findUniqueTabs(tabs) {
-    const seenUrls = new Map();
-    const uniqueTabs = [];
-    const duplicatesToClose = [];
-    
-    tabs.forEach(tab => {
-      const url = tab.url;
-      if (seenUrls.has(url)) {
-        duplicatesToClose.push(tab.id);
+      const d = await chrome.storage.local.get(['requestCount', 'lastResetDate']);
+      const today = new Date().toDateString();
+      if (d.lastResetDate !== today) {
+        this.reqCount = 0;
+        await chrome.storage.local.set({ requestCount: 0, lastResetDate: today });
       } else {
-        seenUrls.set(url, true);
-        uniqueTabs.push(tab);
+        this.reqCount = d.requestCount || 0;
       }
+    } catch { this.reqCount = 0; }
+  }
+
+  async _bumpCount() {
+    this.reqCount++;
+    await chrome.storage.local.set({
+      requestCount: this.reqCount,
+      lastResetDate: new Date().toDateString(),
     });
-    
-    // Close duplicate tabs
-    if (duplicatesToClose.length > 0) {
-      chrome.tabs.remove(duplicatesToClose).catch(err => {
-        console.error('Error removing duplicate tabs:', err);
+  }
+
+  async _resetCount() {
+    const old = this.reqCount;
+    this.reqCount = 0;
+    await chrome.storage.local.set({ requestCount: 0, lastResetDate: new Date().toDateString() });
+    this._refreshUsage();
+    this._status(`✓ Counter reset (${old} → 0)`, 'success');
+  }
+
+  _refreshUsage() {
+    const bar = $('usageInfo');
+    const txt = $('usageText');
+    if (this.reqCount > 0) {
+      bar.classList.add('visible');
+      const pct = Math.round((this.reqCount / DAILY_LIMIT) * 100);
+      const clr = pct > 80 ? '#f56565' : pct > 60 ? '#ed8936' : '#48bb78';
+      txt.textContent = '';
+      txt.append('📊 Today: ');
+      const span = document.createElement('span');
+      span.style.color = clr;
+      span.style.fontWeight = '700';
+      span.textContent = `${this.reqCount}/${DAILY_LIMIT}`;
+      txt.append(span, ` requests (${pct}%)`);
+    } else {
+      bar.classList.remove('visible');
+    }
+  }
+
+  // ── Key Status Indicators ────────────────────────────────────────────────
+
+  _updateKeyStatus() {
+    const keys = [
+      { id: 'geminiKeyStatus', value: this.apiKey,    provider: 'gemini' },
+      { id: 'openaiKeyStatus', value: this.openaiKey, provider: 'openai' },
+      { id: 'claudeKeyStatus', value: this.claudeKey, provider: 'claude' },
+    ];
+    for (const k of keys) {
+      const el = $(k.id);
+      if (!el) continue;
+      const cn = KEY_CODENAMES[k.provider];
+      if (k.value) {
+        el.textContent = `✓ ${cn.name} saved`;
+        el.className = 'key-status visible saved';
+      } else {
+        el.textContent = '';
+        el.className = 'key-status';
+      }
+    }
+  }
+
+  // ── Event Binding ────────────────────────────────────────────────────────
+
+  _bind() {
+    $('apiKey').addEventListener('input', e => {
+      this.apiKey = e.target.value.trim();
+      this._save();
+    });
+
+    $('categories').addEventListener('input', e => {
+      const clean = sanitizeHtmlTags(e.target.value);
+      if (clean !== e.target.value) e.target.value = clean;
+      this.categories = clean.split(',').map(c => c.trim()).filter(Boolean);
+      this._save();
+    });
+
+    $('logicRules').addEventListener('input', e => {
+      const clean = sanitizeHtmlTags(e.target.value);
+      if (clean !== e.target.value) e.target.value = clean;
+      this.logicRules = clean;
+      this._save();
+    });
+
+    $('removeDuplicates').addEventListener('change', e => {
+      this.removeDups = e.target.checked;
+      this._save();
+    });
+
+    $('modelSelect').addEventListener('change', e => {
+      this.selectedModel = e.target.value;
+      this._save();
+    });
+
+    document.querySelectorAll('input[name="mode"]').forEach(r => {
+      r.addEventListener('change', e => {
+        this.mode = e.target.value;
+        $('stackOptionsSection').style.display = this.mode === 'stacks' ? '' : 'none';
+        const wsScope = $('workspaceScopeSection');
+        if (wsScope) wsScope.style.display = this.mode === 'workspaces' ? '' : 'none';
+        this._updateWorkspaceSetup();
+        this._save();
       });
+    });
+    $('stackOptionsSection').style.display = this.mode === 'stacks' ? '' : 'none';
+    const wsScope = $('workspaceScopeSection');
+    if (wsScope) wsScope.style.display = this.mode === 'workspaces' ? '' : 'none';
+
+    document.querySelectorAll('input[name="stackScope"]').forEach(r => {
+      r.addEventListener('change', e => { this.stackScope = e.target.value; this._save(); });
+    });
+
+    $('analyzeBtn').addEventListener('click', () => this._analyze());
+    $('applyBtn').addEventListener('click', () => this._apply());
+    $('resetCounter').addEventListener('click', () => this._resetCount());
+    $('refreshModelsBtn').addEventListener('click', () => this._fetchModels());
+    $('checkBridgeBtn').addEventListener('click', () => this._checkBridge());
+    $('downloadSetupBtn').addEventListener('click', () => this._downloadSetup());
+
+    const includeUncat = $('includeUncategorized');
+    if (includeUncat) includeUncat.addEventListener('change', e => {
+      this.includeUncategorized = e.target.checked;
+      this._save();
+    });
+
+    const reassignEl = $('reassignExisting');
+    if (reassignEl) reassignEl.addEventListener('change', e => {
+      this.reassignExisting = e.target.checked;
+      this._save();
+    });
+
+    const autoCloseEl = $('autoClose');
+    if (autoCloseEl) autoCloseEl.addEventListener('change', e => {
+      this.autoClose = e.target.checked;
+      this._save();
+    });
+
+    document.querySelectorAll('input[name="workspaceScope"]').forEach(r => {
+      r.addEventListener('change', e => { this.workspaceScope = e.target.value; this._save(); });
+    });
+
+    const providerEl = $('providerSelect');
+    if (providerEl) providerEl.addEventListener('change', e => {
+      this.provider = e.target.value;
+      this._updateProviderFields();
+      this._save();
+    });
+
+    const openaiKeyEl = $('openaiKey');
+    if (openaiKeyEl) openaiKeyEl.addEventListener('input', e => {
+      this.openaiKey = e.target.value.trim();
+      this._save();
+    });
+
+    const claudeKeyEl = $('claudeKey');
+    if (claudeKeyEl) claudeKeyEl.addEventListener('input', e => {
+      this.claudeKey = e.target.value.trim();
+      this._save();
+    });
+
+    const openaiModelEl = $('openaiModelSelect');
+    if (openaiModelEl) openaiModelEl.addEventListener('change', e => {
+      this.openaiModel = e.target.value;
+      this._save();
+    });
+
+    const claudeModelEl = $('claudeModelSelect');
+    if (claudeModelEl) claudeModelEl.addEventListener('change', e => {
+      this.claudeModel = e.target.value;
+      this._save();
+    });
+
+    const copyBtn = $('copyCommandsBtn');
+    if (copyBtn) copyBtn.addEventListener('click', () => this._copyCommands());
+
+    // Show/hide key toggle buttons
+    document.querySelectorAll('.toggle-vis').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = $(btn.dataset.target);
+        if (!input) return;
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        btn.textContent = showing ? '👁' : '🙈';
+      });
+    });
+
+    // Export / Import settings
+    const exportBtn = $('exportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => this._exportSettings());
+    const importBtn = $('importBtn');
+    const importFile = $('importFile');
+    if (importBtn && importFile) {
+      importBtn.addEventListener('click', () => importFile.click());
+      importFile.addEventListener('change', e => this._importSettings(e));
     }
-    
-    return uniqueTabs;
+
+    this._updateProviderFields();
+    this._updateWorkspaceSetup();
   }
-  
-  async analyzeTabsWithGemini(tabs) {
-    try {
-      // Prepare the prompt for Gemini
-      const tabsInfo = tabs.map(tab => ({
-        id: tab.id,
-        title: tab.title,
-        url: tab.url
-      }));
-      
-      const prompt = this.buildGeminiPrompt(tabsInfo);
-      
-      // Call Gemini API with retry logic for rate limiting
-      const maxRetries = 2;
-      let lastError = null;
-      
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-          // Add delay for retries (exponential backoff with longer waits for rate limits)
-          if (attempt > 0) {
-            // For rate limit retries, wait at least 60 seconds (Google's free tier resets per minute)
-            const baseDelayMs = 60000; // 60 seconds
-            const delayMs = baseDelayMs * attempt; // 60s, 120s
-            this.showStatus(`Google API rate limit hit. Waiting ${delayMs / 1000}s before retry... (attempt ${attempt + 1}/${maxRetries + 1})`, 'info');
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-          }
-          
-          // Track request time for rate limiting
-          this.lastRequestTime = Date.now();
-          
-          console.log(`Making Gemini API request (attempt ${attempt + 1}/${maxRetries + 1}), local counter at ${this.requestCount}/${this.dailyRequestLimit}, model: ${this.selectedModel}`);
-          
-          // Use the user-selected model
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.selectedModel}:generateContent?key=${this.apiKey}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{
-                  text: prompt
-                }]
-              }],
-              generationConfig: {
-                temperature: 0.2,
-                topK: 40,
-                topP: 0.95,
-                maxOutputTokens: 8192
-              }
-            })
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.error?.message || response.statusText;
-            
-            console.error(`Gemini API error (status ${response.status}):`, errorMessage);
-            
-            // Check for rate limit errors (429 or quota messages)
-            if (response.status === 429 || errorMessage.toLowerCase().includes('quota') || 
-                errorMessage.toLowerCase().includes('rate limit')) {
-              
-              // Create a more specific error message
-              const isQuotaError = errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('exceeded');
-              let specificMessage;
-              
-              if (isQuotaError) {
-                specificMessage = `Google API quota exceeded. Free tier limits: 15 requests/min, 1,500 requests/day, 1M tokens/min. `;
-                specificMessage += `This error comes directly from Google's servers, not the extension. `;
-                specificMessage += `If you just created the API key, wait 1-2 minutes for activation. `;
-                specificMessage += `Otherwise, you may have hit the daily limit - try again tomorrow or check your usage at https://aistudio.google.com/`;
-              } else {
-                specificMessage = `Google API rate limit hit (too many requests too quickly). Wait 60 seconds and try again.`;
-              }
-              
-              lastError = new Error(specificMessage);
-              
-              // Retry on rate limit errors, but not on quota errors (those won't recover quickly)
-              if (attempt < maxRetries && !isQuotaError) {
-                continue;
-              } else if (isQuotaError) {
-                // Don't retry quota errors - they won't recover in minutes
-                break;
-              }
-            } else {
-              // For non-rate-limit errors, throw immediately
-              throw new Error(`Gemini API error: ${errorMessage}`);
-            }
-          } else {
-            // Success - parse and return the response
-            const data = await response.json();
-            const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!resultText) {
-              throw new Error('No response from Gemini API');
-            }
-            
-            // Parse the JSON response
-            const categorizedTabs = this.parseGeminiResponse(resultText, tabs);
-            
-            // Only increment request counter on successful API call
-            console.log(`Gemini API request successful. Incrementing counter from ${this.requestCount} to ${this.requestCount + 1}`);
-            await this.updateRequestTracking();
-            
-            return categorizedTabs;
-          }
-        } catch (error) {
-          // If it's a fetch error (network issue), save it and potentially retry
-          if (error.message.includes('fetch') || error.message.includes('network')) {
-            lastError = error;
-            if (attempt < maxRetries) {
-              continue;
-            }
-          }
-          // For other errors, throw immediately
-          throw error;
-        }
+
+  // ── UI Helpers ───────────────────────────────────────────────────────────
+
+  _status(msg, type) {
+    const el = $('status');
+    el.textContent = msg;
+    el.className = 'visible ' + type;
+  }
+
+  _showPreview(cats) {
+    const el = $('preview');
+    el.replaceChildren();
+
+    const heading = document.createElement('div');
+    heading.className = 'preview-heading';
+    heading.textContent = '📊 Preview';
+    el.appendChild(heading);
+
+    let total = 0;
+    for (const [cat, tabs] of Object.entries(cats)) {
+      if (!tabs.length) continue;
+      total += tabs.length;
+      const row = document.createElement('div');
+      row.className = 'preview-row';
+
+      const name = document.createElement('span');
+      name.className = 'preview-cat';
+      name.textContent = cat;
+
+      const count = document.createElement('span');
+      count.className = 'preview-count';
+      count.textContent = `${tabs.length} tab${tabs.length !== 1 ? 's' : ''}`;
+
+      row.append(name, count);
+      el.appendChild(row);
+    }
+
+    const footer = document.createElement('div');
+    footer.className = 'preview-total';
+    footer.textContent = `Total: ${total} tabs`;
+    el.appendChild(footer);
+
+    el.classList.add('visible');
+  }
+
+  // ── Browser Detection ────────────────────────────────────────────────────
+
+  _detectBrowser() {
+    this.browser = /Vivaldi/.test(navigator.userAgent) ? 'vivaldi' : 'chrome';
+    if (this.browser === 'chrome') {
+      const stackLabel = document.querySelector('label[for="modeStacks"]');
+      if (stackLabel) stackLabel.textContent = stackLabel.textContent.replace('Tab Stacks', 'Tab Groups');
+      const wsLabel = document.querySelector('label[for="modeWorkspaces"]');
+      if (wsLabel && !wsLabel.textContent.includes('Vivaldi only')) {
+        wsLabel.textContent = wsLabel.textContent + ' (Vivaldi only)';
       }
-      
-      // If we exhausted all retries, throw the last error
-      throw lastError || new Error('Failed to analyze tabs after multiple attempts');
-      
-    } catch (error) {
-      console.error('Error calling Gemini API:', error);
-      throw error;
     }
   }
-  
-  buildGeminiPrompt(tabsInfo) {
-    const categoriesList = this.categories.join(', ');
-    const rulesSection = this.logicRules ? `\n\nAdditional Logic Rules:\n${this.logicRules}` : '';
-    
-    return `You are an AI assistant helping to categorize browser tabs. Analyze the following tabs and categorize each one into ONE of these categories: ${categoriesList}.
 
-Categories: ${categoriesList}
-${rulesSection}
-
-Tabs to categorize:
-${JSON.stringify(tabsInfo, null, 2)}
-
-Instructions:
-1. Analyze each tab's title and URL
-2. Assign each tab to the MOST appropriate category from the list
-3. If a tab doesn't fit any category well, assign it to the closest one
-4. Consider the logic rules if provided
-5. Return ONLY a valid JSON array in this exact format, with no additional text:
-
-[
-  {"id": tab_id, "category": "CategoryName"},
-  {"id": tab_id, "category": "CategoryName"}
-]
-
-Return ONLY the JSON array, nothing else.`;
-  }
-  
-  parseGeminiResponse(responseText, originalTabs) {
+  async _checkVivaldiVersion() {
+    const match = navigator.userAgent.match(/Vivaldi\/([\d.]+)/);
+    if (!match) return;
+    const version = match[1];
     try {
-      console.log('Parsing Gemini response, length:', responseText.length);
-      
-      let jsonText = null;
-      let categorizations = null;
-      
-      // Strategy 1: Try to extract JSON from markdown code blocks
-      // Look for ```json or just ``` followed by JSON array
-      const markdownMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-      if (markdownMatch) {
-        console.log('Found JSON in markdown code block');
-        jsonText = markdownMatch[1];
+      const d = await chrome.storage.local.get(['lastKnownVivaldiVersion']);
+      if (d.lastKnownVivaldiVersion && d.lastKnownVivaldiVersion !== version) {
+        this._status('⚠️ Vivaldi updated – you may need to re-inject the bridge script.', 'info');
       }
-      
-      // Strategy 2: Try to find a JSON array using regex (greedy to capture full array)
-      // But first, check if response contains markdown - if so, try to strip it
-      if (!jsonText) {
-        let cleanedResponse = responseText;
-        
-        // If response contains markdown indicators, try to extract just the content
-        if (responseText.includes('```')) {
-          // Try to extract content between backticks even if regex didn't match
-          const backtickParts = responseText.split('```');
-          if (backtickParts.length >= 3) {
-            // Take the middle part (between first and second ```)
-            cleanedResponse = backtickParts[1]
-              .replace(/^json\s*/i, '') // Remove 'json' language identifier
-              .trim();
-            console.log('Extracted content from markdown code block');
-          }
-        }
-        
-        const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          console.log('Found JSON array using regex');
-          jsonText = jsonMatch[0];
-        }
+      await chrome.storage.local.set({ lastKnownVivaldiVersion: version });
+    } catch (e) { console.error('checkVivaldiVersion:', e); }
+  }
+
+  // ── Provider Fields ─────────────────────────────────────────────────────
+
+  _updateProviderFields() {
+    const geminiSection = $('geminiKeySection');
+    const openaiSection = $('openaiKeySection');
+    const claudeSection = $('claudeKeySection');
+    const geminiModelSection = $('modelSection');
+    const openaiModelSection = $('openaiModelSection');
+    const claudeModelSection = $('claudeModelSection');
+    if (geminiSection) geminiSection.style.display = this.provider === 'gemini' ? '' : 'none';
+    if (openaiSection) openaiSection.style.display = this.provider === 'openai' ? '' : 'none';
+    if (claudeSection) claudeSection.style.display = this.provider === 'claude' ? '' : 'none';
+    if (geminiModelSection) geminiModelSection.style.display = this.provider === 'gemini' ? '' : 'none';
+    if (openaiModelSection) openaiModelSection.style.display = this.provider === 'openai' ? '' : 'none';
+    if (claudeModelSection) claudeModelSection.style.display = this.provider === 'claude' ? '' : 'none';
+  }
+
+  // ── Copy Commands ───────────────────────────────────────────────────────
+
+  _copyCommands() {
+    const ua = navigator.userAgent;
+    const isWin = /Win/.test(ua);
+    const isMac = /Mac/.test(ua);
+    let cmd;
+    if (isWin) {
+      cmd = 'powershell -ExecutionPolicy Bypass -File install_bridge.ps1';
+    } else if (isMac) {
+      cmd = 'chmod +x install_bridge.sh && ./install_bridge.sh';
+    } else {
+      cmd = 'chmod +x install_bridge.sh && sudo ./install_bridge.sh';
+    }
+    navigator.clipboard.writeText(cmd).then(
+      () => this._status('✓ Command copied to clipboard!', 'success'),
+      () => this._status('Failed to copy to clipboard.', 'error'),
+    );
+  }
+
+  // ── Export / Import Settings ────────────────────────────────────────────
+
+  _exportSettings() {
+    const data = {
+      _format: 'vivaldi-ai-tab-sorter-settings',
+      _version: 1,
+      _exported: new Date().toISOString(),
+      keys: {
+        fox: this.apiKey,
+        owl: this.openaiKey,
+        dolphin: this.claudeKey,
+      },
+      provider: this.provider,
+      models: {
+        gemini: this.selectedModel,
+        openai: this.openaiModel,
+        claude: this.claudeModel,
+      },
+      categories: this.categories.join(', '),
+      logicRules: this.logicRules,
+      mode: this.mode,
+      stackScope: this.stackScope,
+      workspaceScope: this.workspaceScope,
+      removeDuplicates: this.removeDups,
+      includeUncategorized: this.includeUncategorized,
+      reassignExisting: this.reassignExisting,
+      autoClose: this.autoClose,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tab-sorter-settings.json';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const saved = Object.entries(data.keys).filter(([, v]) => v).map(([k]) => k);
+    const label = saved.length ? saved.join(', ') : 'none';
+    this._status(`✓ Settings exported (keys: ${label})`, 'success');
+  }
+
+  async _importSettings(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (data._format !== 'vivaldi-ai-tab-sorter-settings') {
+        this._status('Invalid settings file.', 'error'); return;
       }
-      
-      // Strategy 3: Try to parse the entire response as JSON
-      if (!jsonText) {
-        console.log('Attempting to parse entire response as JSON');
-        jsonText = responseText.trim();
+      // Restore keys
+      if (data.keys) {
+        if (data.keys.fox)     { this.apiKey = data.keys.fox;       $('apiKey').value = data.keys.fox; }
+        if (data.keys.owl)     { this.openaiKey = data.keys.owl;    const el = $('openaiKey'); if (el) el.value = data.keys.owl; }
+        if (data.keys.dolphin) { this.claudeKey = data.keys.dolphin; const el = $('claudeKey'); if (el) el.value = data.keys.dolphin; }
       }
-      
-      // Throw descriptive error if no JSON found
-      if (!jsonText) {
-        console.error('Could not extract JSON from response. Response:', responseText.substring(0, 500));
-        throw new Error('Could not find JSON array in AI response. The response may be empty or malformed.');
+      // Restore other settings
+      if (data.provider)  { this.provider = data.provider; const el = $('providerSelect'); if (el) el.value = data.provider; }
+      if (data.models) {
+        if (data.models.gemini) { this.selectedModel = data.models.gemini; $('modelSelect').value = data.models.gemini; }
+        if (data.models.openai) { this.openaiModel = data.models.openai; const el = $('openaiModelSelect'); if (el) el.value = data.models.openai; }
+        if (data.models.claude) { this.claudeModel = data.models.claude; const el = $('claudeModelSelect'); if (el) el.value = data.models.claude; }
       }
-      
-      // Try to parse the JSON
+      if (data.categories) { $('categories').value = data.categories; this.categories = data.categories.split(',').map(c => c.trim()).filter(Boolean); }
+      if (data.logicRules != null) { $('logicRules').value = data.logicRules; this.logicRules = data.logicRules; }
+      if (data.mode) {
+        const r = $('mode' + data.mode.charAt(0).toUpperCase() + data.mode.slice(1));
+        if (r) { r.checked = true; this.mode = data.mode; }
+      }
+      if (data.stackScope) { const el = $(data.stackScope === 'all' ? 'stackAllWindows' : 'stackCurrentWindow'); if (el) el.checked = true; this.stackScope = data.stackScope; }
+      if (data.workspaceScope) { const el = $(data.workspaceScope === 'all' ? 'workspaceScopeAll' : 'workspaceScopeCurrent'); if (el) el.checked = true; this.workspaceScope = data.workspaceScope; }
+      if (data.removeDuplicates != null) { $('removeDuplicates').checked = data.removeDuplicates; this.removeDups = data.removeDuplicates; }
+      if (data.includeUncategorized != null) { const el = $('includeUncategorized'); if (el) el.checked = data.includeUncategorized; this.includeUncategorized = data.includeUncategorized; }
+      if (data.reassignExisting != null) { const el = $('reassignExisting'); if (el) el.checked = data.reassignExisting; this.reassignExisting = data.reassignExisting; }
+      if (data.autoClose != null) { const el = $('autoClose'); if (el) el.checked = data.autoClose; this.autoClose = data.autoClose; }
+
+      await this._save();
+      this._updateProviderFields();
+      this._status('✓ Settings imported!', 'success');
+    } catch (err) {
+      this._status('Failed to import: ' + sanitizeErrorMessage(err.message), 'error');
+    } finally {
+      e.target.value = '';  // allow re-importing same file
+    }
+  }
+
+  // ── Auto-fetch Models ───────────────────────────────────────────────────
+
+  async _autoFetchModels() {
+    try {
+      const d = await chrome.storage.local.get(['modelsFetched']);
+      if (!d.modelsFetched && this.apiKey && this.provider === 'gemini') {
+        await this._fetchModels();
+        await chrome.storage.local.set({ modelsFetched: true });
+      }
+    } catch (e) { console.error('autoFetchModels:', e); }
+  }
+
+  // ── Workspace Setup ──────────────────────────────────────────────────────
+
+  _updateWorkspaceSetup() {
+    const section = $('workspaceSetupSection');
+    section.style.display = this.mode === 'workspaces' ? '' : 'none';
+    if (this.mode === 'workspaces') this._checkBridge();
+  }
+
+  async _checkBridge() {
+    const indicator = $('bridgeStatus');
+    const setupArea = $('bridgeSetupArea');
+    indicator.textContent = '⏳ Checking workspace support…';
+    indicator.className = 'bridge-indicator info';
+    $('checkBridgeBtn').disabled = true;
+
+    try {
+      const result = await chrome.runtime.sendMessage({ action: 'checkWorkspaceSupport' });
+      if (result?.available) {
+        const label = result.method === 'direct' ? 'Direct API' : 'Bridge';
+        indicator.textContent = `✅ ${label} connected – workspaces ready`;
+        indicator.className = 'bridge-indicator success';
+        setupArea.style.display = 'none';
+      } else {
+        indicator.textContent = '⚠️ Bridge not detected – install to enable workspaces';
+        indicator.className = 'bridge-indicator warn';
+        setupArea.style.display = '';
+      }
+    } catch {
+      indicator.textContent = '⚠️ Could not check – install bridge for workspaces';
+      indicator.className = 'bridge-indicator warn';
+      setupArea.style.display = '';
+    } finally {
+      $('checkBridgeBtn').disabled = false;
+    }
+  }
+
+  async _downloadSetup() {
+    const ua = navigator.userAgent;
+    const vivaldiVersionMatch = ua.match(/Vivaldi\/([\d.]+)/);
+    const vivaldiVer = vivaldiVersionMatch ? vivaldiVersionMatch[1] : '<VERSION>';
+
+    // Get bridge script content from background
+    let bridgeCode;
+    try {
+      const resp = await chrome.runtime.sendMessage({ action: 'getBridgeScript' });
+      bridgeCode = resp?.script || '';
+    } catch {
+      bridgeCode = '';
+    }
+    if (!bridgeCode) {
+      this._status('Could not load bridge script.', 'error');
+      return;
+    }
+
+    const isWin = /Win/.test(ua);
+    const isMac = /Mac/.test(ua);
+
+    let filename, content;
+
+    if (isWin) {
+      filename = 'install_bridge.ps1';
+      content = this._genPowerShell(vivaldiVer, bridgeCode);
+    } else if (isMac) {
+      filename = 'install_bridge.sh';
+      content = this._genBashMac(vivaldiVer, bridgeCode);
+    } else {
+      filename = 'install_bridge.sh';
+      content = this._genBashLinux(bridgeCode);
+    }
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const runCmd = isWin
+      ? `Right-click ${filename} → "Run with PowerShell"`
+      : `chmod +x ${filename} && ./${filename}`;
+    this._status(`Downloaded ${filename}. Run it: ${runCmd}`, 'info');
+  }
+
+  _genPowerShell(ver, bridgeCode) {
+    const escapedBridgeCode = bridgeCode.replace(/'/g, "''");
+    return `# install_bridge.ps1 – Vivaldi AI Tab Sorter bridge installer
+# Run: Right-click -> "Run with PowerShell"  (or:  powershell -ExecutionPolicy Bypass -File install_bridge.ps1)
+
+$ErrorActionPreference = "Stop"
+
+# Find Vivaldi resources directory
+$base = "$env:LOCALAPPDATA\\Vivaldi\\Application"
+if (-Not (Test-Path $base)) { Write-Error "Vivaldi not found at $base"; exit 1 }
+
+$verDirs = Get-ChildItem $base -Directory | Where-Object { $_.Name -match '^[\\d.]+$' } | Sort-Object { [version]$_.Name } -Descending
+if (-Not $verDirs) { Write-Error "No Vivaldi version folders found."; exit 1 }
+$target = Join-Path $verDirs[0].FullName "resources\\vivaldi"
+if (-Not (Test-Path "$target\\window.html")) { Write-Error "window.html not found in $target"; exit 1 }
+
+Write-Host "Found Vivaldi at: $target" -ForegroundColor Cyan
+
+# Backup
+$backup = "$target\\window.html.backup"
+if (-Not (Test-Path $backup)) {
+  Copy-Item "$target\\window.html" $backup
+  Write-Host "Backed up window.html" -ForegroundColor Green
+}
+
+# Write bridge script
+$bridge = @'
+${escapedBridgeCode}
+'@
+Set-Content -Path "$target\\ai_bridge.js" -Value $bridge -Encoding UTF8
+Write-Host "Wrote ai_bridge.js" -ForegroundColor Green
+
+# Patch window.html
+$html = Get-Content "$target\\window.html" -Raw
+if ($html -match 'ai_bridge\\.js') {
+  Write-Host "Script tag already present – skipping." -ForegroundColor Yellow
+} else {
+  $html = $html -replace '</body>', '  <script src="ai_bridge.js"></script>\\n</body>'
+  Set-Content -Path "$target\\window.html" -Value $html -Encoding UTF8
+  Write-Host "Patched window.html" -ForegroundColor Green
+}
+
+Write-Host "\\nDone! Restart Vivaldi to activate the bridge." -ForegroundColor Cyan
+`;
+  }
+
+  _genBashMac(ver, bridgeCode) {
+    const escapedBridgeCode = bridgeCode.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+    return `#!/usr/bin/env bash
+# install_bridge.sh – Vivaldi AI Tab Sorter bridge installer (macOS)
+# Run:  chmod +x install_bridge.sh && ./install_bridge.sh
+
+set -euo pipefail
+
+BASE="/Applications/Vivaldi.app/Contents/Versions"
+if [ ! -d "$BASE" ]; then echo "Vivaldi not found at $BASE"; exit 1; fi
+
+VER=$(ls -1 "$BASE" | sort -V | tail -n1)
+TARGET="$BASE/$VER/Vivaldi Framework.framework/Resources/vivaldi"
+if [ ! -f "$TARGET/window.html" ]; then echo "window.html not found in $TARGET"; exit 1; fi
+
+echo "Found Vivaldi at: $TARGET"
+
+# Backup
+[ ! -f "$TARGET/window.html.backup" ] && cp "$TARGET/window.html" "$TARGET/window.html.backup" && echo "Backed up window.html"
+
+# Write bridge script
+cat > "$TARGET/ai_bridge.js" << 'BRIDGEOF'
+${escapedBridgeCode}
+BRIDGEOF
+echo "Wrote ai_bridge.js"
+
+# Patch window.html
+if grep -q 'ai_bridge\\.js' "$TARGET/window.html"; then
+  echo "Script tag already present – skipping."
+else
+  sed -i '' 's|</body>|  <script src="ai_bridge.js"></script>\\n</body>|' "$TARGET/window.html"
+  echo "Patched window.html"
+fi
+
+echo ""
+echo "Done! Restart Vivaldi to activate the bridge."
+`;
+  }
+
+  _genBashLinux(bridgeCode) {
+    const escapedBridgeCode = bridgeCode.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+    return `#!/usr/bin/env bash
+# install_bridge.sh – Vivaldi AI Tab Sorter bridge installer (Linux)
+# Run:  chmod +x install_bridge.sh && sudo ./install_bridge.sh
+
+set -euo pipefail
+
+# Try common Vivaldi paths
+for BASE in /opt/vivaldi/resources/vivaldi /usr/lib/vivaldi/resources/vivaldi /snap/vivaldi/current/opt/vivaldi/resources/vivaldi; do
+  [ -f "$BASE/window.html" ] && TARGET="$BASE" && break
+done
+if [ -z "\${TARGET:-}" ]; then echo "Vivaldi resources not found. Check your install path."; exit 1; fi
+
+echo "Found Vivaldi at: $TARGET"
+
+# Backup
+[ ! -f "$TARGET/window.html.backup" ] && cp "$TARGET/window.html" "$TARGET/window.html.backup" && echo "Backed up window.html"
+
+# Write bridge script
+cat > "$TARGET/ai_bridge.js" << 'BRIDGEOF'
+${escapedBridgeCode}
+BRIDGEOF
+echo "Wrote ai_bridge.js"
+
+# Patch window.html
+if grep -q 'ai_bridge\\.js' "$TARGET/window.html"; then
+  echo "Script tag already present – skipping."
+else
+  sed -i 's|</body>|  <script src="ai_bridge.js"></script>\\n</body>|' "$TARGET/window.html"
+  echo "Patched window.html"
+fi
+
+echo ""
+echo "Done! Restart Vivaldi to activate the bridge."
+`;
+  }
+
+  // ── Model Fetching ───────────────────────────────────────────────────────
+
+  async _fetchModels() {
+    if (!this.apiKey) {
+      this._status('Enter your API key first', 'error');
+      return;
+    }
+    $('refreshModelsBtn').disabled = true;
+    this._status('Fetching models…', 'info');
+    try {
+      const res = await fetch(`${GEMINI_API_BASE}/models?key=${this.apiKey}`);
+      if (!res.ok) throw new Error(res.statusText);
+      const data = await res.json();
+      const models = (data.models || []).filter(
+        m => m.supportedGenerationMethods?.includes('generateContent') && m.name.includes('gemini'),
+      );
+      if (!models.length) { this._status('No compatible models found', 'error'); return; }
+
+      const sel = $('modelSelect');
+      const prev = sel.value;
+      sel.replaceChildren();
+      for (const m of models) {
+        const name = m.name.replace('models/', '');
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name + (name.includes('flash') ? ' (Fast)' : name.includes('pro') ? ' (Advanced)' : '');
+        sel.appendChild(opt);
+      }
+      if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+      else { this.selectedModel = sel.value; this._save(); }
+
+      this._status(`✓ Found ${models.length} models`, 'success');
+    } catch (e) {
+      this._status('Error fetching models: ' + sanitizeErrorMessage(e.message), 'error');
+    } finally {
+      $('refreshModelsBtn').disabled = false;
+    }
+  }
+
+  // ── Tab Collection ───────────────────────────────────────────────────────
+
+  async _getAllTabs() {
+    const tabs = await chrome.tabs.query({});
+    return tabs.map(t => ({ id: t.id, title: t.title || '', url: t.url || '', windowId: t.windowId, index: t.index }));
+  }
+
+  _dedup(tabs) {
+    const seen = new Set();
+    const unique = [];
+    const dupeIds = [];
+    for (const t of tabs) {
+      if (seen.has(t.url)) { dupeIds.push(t.id); }
+      else { seen.add(t.url); unique.push(t); }
+    }
+    if (dupeIds.length) {
+      chrome.tabs.remove(dupeIds).catch(e => console.error('dedup:', e));
+    }
+    return unique;
+  }
+
+  // ── Gemini AI ────────────────────────────────────────────────────────────
+
+  _buildPrompt(tabsInfo) {
+    const cats = this.categories.join(', ');
+    const rules = this.logicRules ? `\n\nCustom rules:\n${this.logicRules}` : '';
+    return [
+      `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
+      rules,
+      '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
+      '\nReturn ONLY a JSON array: [{"id":<tab_id>,"category":"<Category>"},…]',
+    ].join('');
+  }
+
+  _parseResponse(text, origTabs) {
+    let json = null;
+
+    // Strategy 1 – markdown code block
+    const md = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+    if (md) json = md[1];
+
+    // Strategy 2 – backtick content without regex match
+    if (!json && text.includes('```')) {
+      const parts = text.split('```');
+      if (parts.length >= 3) {
+        json = parts[1].replace(/^json\s*/i, '').trim();
+      }
+    }
+
+    // Strategy 3 – greedy array extraction
+    if (!json) {
+      const m = text.match(/\[[\s\S]*\]/);
+      if (m) json = m[0];
+    }
+
+    // Strategy 4 – entire text
+    if (!json) json = text.trim();
+
+    if (!json) throw new Error('Could not find JSON in AI response.');
+
+    let arr;
+    try { arr = JSON.parse(json); } catch (e) {
+      throw new Error('Invalid JSON in AI response: ' + e.message);
+    }
+    if (!Array.isArray(arr)) throw new Error('AI response is not a JSON array.');
+    if (!arr.length) throw new Error('AI returned an empty list.');
+
+    const valid = arr.filter(i => i && i.id !== undefined && i.category);
+    if (!valid.length) throw new Error('AI response items missing "id" or "category".');
+
+    // Build category map
+    const result = {};
+    for (const c of this.categories) result[c] = [];
+    result['Uncategorized'] = [];
+
+    const lookup = new Map(valid.map(i => [i.id, i.category]));
+    for (const t of origTabs) {
+      const cat = lookup.get(t.id);
+      (cat && result[cat] ? result[cat] : result['Uncategorized']).push(t);
+    }
+    return result;
+  }
+
+  async _callGemini(tabs) {
+    const info = tabs.map(t => ({ id: t.id, title: t.title, url: t.url }));
+    const prompt = this._buildPrompt(info);
+
+    const maxRetries = 2;
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        const wait = 60000 * attempt;
+        this._status(`Rate‑limited. Retrying in ${wait / 1000}s… (${attempt + 1}/${maxRetries + 1})`, 'info');
+        await new Promise(r => setTimeout(r, wait));
+      }
+
+      this.lastReqTime = Date.now();
+
       try {
-        categorizations = JSON.parse(jsonText);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Failed to parse JSON:', jsonText.substring(0, 500));
-        throw new Error(`Invalid JSON format in AI response: ${parseError.message}. Try analyzing fewer tabs or check your API key.`);
-      }
-      
-      // Validate that we got an array
-      if (!Array.isArray(categorizations)) {
-        console.error('Response is not an array:', typeof categorizations);
-        throw new Error('AI response is not a JSON array. Expected format: [{"id": ..., "category": "..."}]');
-      }
-      
-      // Validate array has items
-      if (categorizations.length === 0) {
-        console.warn('AI returned empty array');
-        throw new Error('AI returned an empty categorization list. Try rephrasing your categories or logic rules.');
-      }
-      
-      // Validate items have required structure
-      const validItems = categorizations.filter(item => item && typeof item.id !== 'undefined' && item.category);
-      if (validItems.length === 0) {
-        console.error('No valid categorization items found. Sample:', categorizations[0]);
-        throw new Error('AI response items are missing "id" or "category" fields. Expected format: [{"id": ..., "category": "..."}]');
-      }
-      
-      console.log(`Successfully parsed ${validItems.length} categorizations out of ${categorizations.length} items`);
-      
-      // Create a map of categorized tabs
-      const categorizedTabs = {};
-      this.categories.forEach(cat => {
-        categorizedTabs[cat] = [];
-      });
-      
-      // Add an "Uncategorized" category for any tabs not assigned
-      categorizedTabs['Uncategorized'] = [];
-      
-      // Map categorizations back to original tabs
-      const categorizationMap = new Map();
-      validItems.forEach(item => {
-        categorizationMap.set(item.id, item.category);
-      });
-      
-      originalTabs.forEach(tab => {
-        const category = categorizationMap.get(tab.id);
-        if (category && categorizedTabs[category]) {
-          categorizedTabs[category].push(tab);
-        } else {
-          categorizedTabs['Uncategorized'].push(tab);
+        const url = `${GEMINI_API_BASE}/models/${this.selectedModel}:generateContent?key=${this.apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2, topK: 40, topP: 0.95, maxOutputTokens: 8192 },
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.error?.message || res.statusText;
+          const isQuota = /quota|exceeded/i.test(errMsg);
+          const isRate = res.status === 429 || /rate.?limit/i.test(errMsg);
+
+          if (isQuota) {
+            throw new Error(
+              'Google API quota exceeded. Free tier: 15 req/min, 1 500 req/day. '
+              + 'Try again later or check usage at https://aistudio.google.com/',
+            );
+          }
+          if (isRate && attempt < maxRetries) { lastErr = new Error(errMsg); continue; }
+          throw new Error('Gemini API error: ' + errMsg);
         }
-      });
-      
-      return categorizedTabs;
-      
-    } catch (error) {
-      console.error('Error parsing Gemini response:', error);
-      // Re-throw with original message if it's already descriptive
-      if (error.message.includes('AI response') || error.message.includes('JSON')) {
-        throw error;
+
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error('Empty response from Gemini.');
+
+        await this._bumpCount();
+        return this._parseResponse(text, tabs);
+      } catch (e) {
+        if ((e.message.includes('fetch') || e.message.includes('network')) && attempt < maxRetries) {
+          lastErr = e;
+          continue;
+        }
+        throw e;
       }
-      // Otherwise, wrap with generic message
-      throw new Error(`Failed to parse AI response: ${error.message}. Please try again.`);
     }
+    throw lastErr || new Error('Failed after retries.');
   }
-  
-  showPreview(categorizedTabs) {
-    const previewDiv = document.getElementById('preview');
-    previewDiv.innerHTML = '<h3 style="margin-bottom: 12px; font-size: 14px;">📊 Preview</h3>';
-    
-    let totalTabs = 0;
-    Object.keys(categorizedTabs).forEach(category => {
-      const tabs = categorizedTabs[category];
-      if (tabs.length > 0) {
-        totalTabs += tabs.length;
-        const item = document.createElement('div');
-        item.className = 'preview-item';
-        
-        // Use textContent to prevent XSS
-        const categorySpan = document.createElement('span');
-        categorySpan.className = 'preview-category';
-        categorySpan.textContent = category;
-        
-        const countSpan = document.createElement('span');
-        countSpan.className = 'preview-count';
-        countSpan.textContent = `(${tabs.length} tab${tabs.length !== 1 ? 's' : ''})`;
-        
-        item.appendChild(categorySpan);
-        item.appendChild(countSpan);
-        previewDiv.appendChild(item);
+
+  // ── Multi-Provider AI ───────────────────────────────────────────────────
+
+  async _callAI(tabs) {
+    if (this.provider === 'gemini') return this._callGemini(tabs);
+    const info = tabs.map(t => ({ id: t.id, title: t.title, url: t.url }));
+    const prompt = this._buildPrompt(info);
+    let text;
+    if (this.provider === 'openai') text = await this._callOpenAI(prompt);
+    else if (this.provider === 'claude') text = await this._callClaude(prompt);
+    else throw new Error('Unknown AI provider: ' + this.provider);
+    if (!text) throw new Error('Empty response from AI.');
+    await this._bumpCount();
+    return this._parseResponse(text, tabs);
+  }
+
+  async _callAIChunked(tabs) {
+    if (tabs.length <= CHUNK_THRESHOLD) return this._callAI(tabs);
+    const chunks = [];
+    for (let i = 0; i < tabs.length; i += CHUNK_SIZE) {
+      chunks.push(tabs.slice(i, i + CHUNK_SIZE));
+    }
+    const merged = {};
+    for (const c of this.categories) merged[c] = [];
+    merged['Uncategorized'] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      this._status(`Analyzing chunk ${i + 1}/${chunks.length}…`, 'info');
+      const result = await this._callAI(chunks[i]);
+      for (const [cat, catTabs] of Object.entries(result)) {
+        if (!merged[cat]) merged[cat] = [];
+        merged[cat].push(...catTabs);
       }
-    });
-    
-    const totalItem = document.createElement('div');
-    totalItem.className = 'preview-item';
-    totalItem.style.fontWeight = 'bold';
-    totalItem.style.marginTop = '8px';
-    totalItem.style.paddingTop = '8px';
-    totalItem.textContent = `Total: ${totalTabs} tabs`;
-    previewDiv.appendChild(totalItem);
-    
-    previewDiv.classList.add('visible');
+    }
+    return merged;
   }
-  
-  async apply() {
+
+  async _callOpenAI(prompt) {
+    const url = 'https://api.openai.com/v1/chat/completions';
+    const maxRetries = 2;
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        const wait = 30000 * attempt;
+        this._status(`Rate‑limited. Retrying in ${wait / 1000}s… (${attempt + 1}/${maxRetries + 1})`, 'info');
+        await new Promise(r => setTimeout(r, wait));
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.openaiKey}` },
+          body: JSON.stringify({
+            model: this.openaiModel,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const errMsg = err.error?.message || res.statusText;
+          const isRate = res.status === 429 || /rate.?limit/i.test(errMsg);
+          if (isRate && attempt < maxRetries) { lastErr = new Error(errMsg); continue; }
+          throw new Error('OpenAI API error: ' + errMsg);
+        }
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content;
+      } catch (e) {
+        if ((e.message.includes('fetch') || e.message.includes('network')) && attempt < maxRetries) {
+          lastErr = e;
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastErr || new Error('OpenAI: failed after retries.');
+  }
+
+  async _callClaude(prompt) {
+    const url = 'https://api.anthropic.com/v1/messages';
+    const maxRetries = 2;
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        const wait = 30000 * attempt;
+        this._status(`Rate‑limited. Retrying in ${wait / 1000}s… (${attempt + 1}/${maxRetries + 1})`, 'info');
+        await new Promise(r => setTimeout(r, wait));
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.claudeKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: this.claudeModel,
+            max_tokens: 8192,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const errMsg = err.error?.message || res.statusText;
+          const isRate = res.status === 429 || /rate.?limit/i.test(errMsg);
+          if (isRate && attempt < maxRetries) { lastErr = new Error(errMsg); continue; }
+          throw new Error('Claude API error: ' + errMsg);
+        }
+        const data = await res.json();
+        return data.content?.[0]?.text;
+      } catch (e) {
+        if ((e.message.includes('fetch') || e.message.includes('network')) && attempt < maxRetries) {
+          lastErr = e;
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastErr || new Error('Claude: failed after retries.');
+  }
+
+  // ── Analyze Flow ─────────────────────────────────────────────────────────
+
+  async _analyze() {
     try {
-      if (!this.analyzedTabs) {
-        this.showStatus('Please analyze tabs first', 'error');
+      const activeKey = this.provider === 'openai' ? this.openaiKey
+        : this.provider === 'claude' ? this.claudeKey
+        : this.apiKey;
+      const cn = KEY_CODENAMES[this.provider];
+      if (!activeKey.trim()) { this._status(`Enter your ${cn.emoji} ${cn.name} key.`, 'error'); return; }
+      if (this.provider === 'gemini') {
+        const key = activeKey.trim();
+        if (!key.startsWith('AI') || key.length < 35) {
+          this._status(`Invalid ${cn.emoji} ${cn.name} key format.`, 'error'); return;
+        }
+      }
+      if (!this.categories.length) { this._status('Enter at least one category.', 'error'); return; }
+      if (this.reqCount >= DAILY_LIMIT) {
+        this._status(`Daily limit reached (${this.reqCount}/${DAILY_LIMIT}). Reset the counter or wait.`, 'error');
+        this._refreshUsage();
         return;
       }
-      
-      this.showStatus('Applying sorting...', 'info');
-      document.getElementById('applyBtn').disabled = true;
-      
-      if (this.mode === 'workspaces') {
-        await this.applyWorkspaceMode();
-      } else if (this.mode === 'stacks') {
-        await this.applyStackMode();
-      } else if (this.mode === 'windows') {
-        await this.applyWindowMode();
+
+      // Rate‑limit throttle
+      const elapsed = Date.now() - this.lastReqTime;
+      if (elapsed < RPM_INTERVAL_MS && this.lastReqTime > 0) {
+        const wait = Math.ceil((RPM_INTERVAL_MS - elapsed) / 1000);
+        this._status(`Rate limit – wait ${wait}s…`, 'info');
+        await new Promise(r => setTimeout(r, RPM_INTERVAL_MS - elapsed));
       }
-      
-      this.showStatus('✅ Tabs sorted successfully!', 'success');
-      
-      // Reset state
-      setTimeout(() => {
-        window.close();
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Error applying sorting:', error);
-      const sanitizedMessage = this.sanitizeErrorMessage(error.message);
-      this.showStatus(`Error: ${sanitizedMessage}`, 'error');
-      document.getElementById('applyBtn').disabled = false;
-    }
-  }
-  
-  async testBridgeConnection() {
-    // Test if the Vivaldi bridge script is responding
-    try {
-      console.log('Testing bridge connection...');
-      
-      await chrome.storage.local.set({
-        workspaceCommand: {
-          action: 'test',
-          timestamp: Date.now()
-        }
-      });
-      
-      // Wait for response
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const result = await chrome.storage.local.get('workspaceCommandResult');
-      
-      if (result.workspaceCommandResult && 
-          result.workspaceCommandResult.timestamp > Date.now() - 5000) {
-        await chrome.storage.local.remove(['workspaceCommand', 'workspaceCommandResult']);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Error testing bridge:', error);
-      return false;
-    }
-  }
-  
-  async applyWorkspaceMode() {
-    // Send message to background script to handle workspace creation
-    // Now supports both Chrome Extensions API (no bridge required) and bridge fallback
-    try {
-      console.log('Requesting workspace organization...');
-      
-      const response = await chrome.runtime.sendMessage({
-        action: 'organizeToWorkspaces',
-        categorizedTabs: this.analyzedTabs
-      });
-      
-      if (!response || !response.success) {
-        const errorMsg = response?.error || 'Failed to organize tabs into workspaces';
-        console.error('Workspace organization failed:', errorMsg);
-        throw new Error(errorMsg);
-      }
-      
-      console.log('Workspace organization successful via', response.method || 'unknown method');
-      
-      // Show helpful message about which method was used
-      if (response.method === 'extensionsAPI') {
-        console.log('✓ Organized using Chrome Extensions API (no bridge required)');
-        console.log(response.message || `Created ${response.windowsCreated || 0} workspace windows`);
-      } else if (response.method === 'bridge') {
-        console.log('✓ Organized using Vivaldi bridge script');
-      }
-      
-    } catch (error) {
-      console.error('Error in workspace mode:', error);
-      
-      // Provide a more helpful error message
-      const errorMessage = error.message.includes('bridge') 
-        ? `❌ ${error.message}\n\nNote: The extension now uses Chrome Extensions API by default, which works without the bridge script.`
-        : `❌ Workspace mode error: ${error.message}`;
-      
-      throw new Error(errorMessage);
-    }
-  }
-  
-  async applyStackMode() {
-    try {
-      console.log(`Stack mode: scope=${this.stackScope}`);
-      console.log('Analyzed tabs:', Object.keys(this.analyzedTabs).map(cat => `${cat}: ${this.analyzedTabs[cat].length} tabs`).join(', '));
-      
-      let targetWindowId;
-      let allTabsToOrganize = [];
-      
-      if (this.stackScope === 'all') {
-        // Consolidate all windows: get all tabs from all windows
-        console.log('Consolidating tabs from all windows into one window...');
-        const allWindows = await chrome.windows.getAll({ populate: true });
-        
-        // Create or use a window for consolidation
-        targetWindowId = allWindows[0].id;
-        
-        // First, move all tabs to the target window
-        const movedTabIds = new Set();
-        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
-          if (tabs.length === 0) continue;
-          
-          // Move tabs from other windows to the target window first
-          for (const tab of tabs) {
-            if (tab.windowId !== targetWindowId) {
-              try {
-                await chrome.tabs.move(tab.id, {
-                  windowId: targetWindowId,
-                  index: -1
-                });
-                movedTabIds.add(tab.id);
-              } catch (err) {
-                console.error(`Error moving tab ${tab.id} to target window:`, err);
-              }
-            }
-          }
-        }
-        
-        // Re-query tabs in the target window to get updated tab objects
-        const updatedTabs = await chrome.tabs.query({ windowId: targetWindowId });
-        const tabMap = new Map(updatedTabs.map(t => [t.id, t]));
-        
-        // Now organize tabs with updated tab objects
-        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
-          if (tabs.length === 0) continue;
-          
-          // Get updated tab objects for this category
-          const updatedCategoryTabs = tabs
-            .map(t => tabMap.get(t.id))
-            .filter(t => t !== undefined);
-          
-          if (updatedCategoryTabs.length > 0) {
-            allTabsToOrganize.push({ category, tabs: updatedCategoryTabs });
-          }
-        }
+
+      $('analyzeBtn').disabled = true;
+      this._status('Collecting tabs…', 'info');
+
+      this.allTabs = await this._getAllTabs();
+      if (!this.allTabs.length) { this._status('No tabs found.', 'error'); $('analyzeBtn').disabled = false; return; }
+
+      let tabs = this.allTabs;
+      if (this.removeDups) {
+        tabs = this._dedup(tabs);
+        this._status(`Removed ${this.allTabs.length - tabs.length} duplicates. Analyzing ${tabs.length} tabs…`, 'info');
       } else {
-        // Current window only
-        const currentWindow = await chrome.windows.getCurrent();
-        targetWindowId = currentWindow.id;
-        
-        for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
-          if (tabs.length === 0) continue;
-          // Only include tabs from current window
-          const tabsInCurrentWindow = tabs.filter(t => t.windowId === currentWindow.id);
-          if (tabsInCurrentWindow.length > 0) {
-            allTabsToOrganize.push({ category, tabs: tabsInCurrentWindow });
-          }
-        }
+        this._status(`Analyzing ${tabs.length} tabs… (request ${this.reqCount + 1}/${DAILY_LIMIT})`, 'info');
       }
-      
-      // Now create colored groups with names for each category
-      let colorIndex = 0;
-      let groupsCreated = 0;
-      let groupsFailed = 0;
-      
-      console.log(`Attempting to create ${allTabsToOrganize.length} tab groups...`);
-      
-      if (allTabsToOrganize.length === 0) {
-        console.warn('No tabs to organize! allTabsToOrganize is empty.');
-        throw new Error('No tabs to organize. This could mean all tabs were filtered out or the analysis data was lost.');
-      }
-      
-      for (const { category, tabs } of allTabsToOrganize) {
-        if (tabs.length === 0) continue;
-        
-        const tabIds = tabs.map(t => t.id);
-        const color = this.availableColors[colorIndex % this.availableColors.length];
-        
-        console.log(`Creating group "${category}" with color ${color} and ${tabIds.length} tabs (IDs: ${tabIds.join(', ')})`);
-        
-        // Verify tabs still exist before grouping
-        try {
-          const validTabIds = [];
-          for (const tabId of tabIds) {
-            try {
-              const tab = await chrome.tabs.get(tabId);
-              if (tab) {
-                validTabIds.push(tabId);
-              }
-            } catch (err) {
-              console.warn(`Tab ${tabId} no longer exists, skipping`);
-            }
-          }
-          
-          if (validTabIds.length === 0) {
-            console.warn(`No valid tabs found for category "${category}", skipping`);
-            continue;
-          }
-          
-          console.log(`  -> Verified ${validTabIds.length}/${tabIds.length} tabs still exist`);
-          
-          const groupId = await chrome.tabs.group({
-            tabIds: validTabIds
-          });
-          
-          console.log(`  -> Group created with ID: ${groupId}`);
-          
-          // Update group with color and category name
-          await chrome.tabGroups.update(groupId, {
-            title: category,
-            color: color,
-            collapsed: false
-          });
-          
-          console.log(`  -> Group updated with title "${category}" and color ${color}`);
-          
-          colorIndex++;
-          groupsCreated++;
-        } catch (err) {
-          console.error(`Error creating group for ${category}:`, err);
-          console.error(`  -> Tab IDs that failed:`, tabIds);
-          console.error(`  -> Error details:`, err.message, err.stack);
-          groupsFailed++;
-        }
-      }
-      
-      // Focus the target window
-      if (targetWindowId) {
-        await chrome.windows.update(targetWindowId, { focused: true });
-      }
-      
-      console.log(`✓ Created ${groupsCreated} colored tab stacks (${groupsFailed} failed)`);
-      
-      if (groupsCreated === 0 && allTabsToOrganize.length > 0) {
-        throw new Error(`Failed to create any tab groups. Attempted ${allTabsToOrganize.length} groups, all failed. Check the browser console for details.`);
-      }
-      
-      
-    } catch (error) {
-      console.error('Error in stack mode:', error);
-      throw error;
+
+      this.analyzedTabs = await this._callAIChunked(tabs);
+      this._showPreview(this.analyzedTabs);
+      $('applyBtn').disabled = false;
+      this._refreshUsage();
+      this._status('Analysis complete – review & apply.', 'success');
+    } catch (e) {
+      console.error('analyze:', e);
+      this._status(sanitizeErrorMessage(e.message), 'error');
+    } finally {
+      $('analyzeBtn').disabled = false;
     }
   }
-  
-  async applyWindowMode() {
+
+  // ── Apply Flow ───────────────────────────────────────────────────────────
+
+  async _apply() {
+    if (!this.analyzedTabs) { this._status('Run analysis first.', 'error'); return; }
     try {
-      // Create separate windows for each category
-      // Each window will have tabs grouped with the category name as the group title
-      let colorIndex = 0;
-      let windowsCreated = 0;
-      
-      for (const [category, tabs] of Object.entries(this.analyzedTabs)) {
-        if (tabs.length === 0) continue;
-        
-        console.log(`Creating window for category "${category}" with ${tabs.length} tabs`);
-        
-        // Create new window with the first tab
-        const firstTab = tabs[0];
-        const newWindow = await chrome.windows.create({
-          tabId: firstTab.id,
-          focused: false
-        });
-        
-        // Move remaining tabs to the new window
-        if (tabs.length > 1) {
-          const remainingTabIds = tabs.slice(1).map(t => t.id);
-          await chrome.tabs.move(remainingTabIds, {
-            windowId: newWindow.id,
-            index: -1
-          });
-        }
-        
-        // Get all tabs in the new window (they've been moved)
-        const windowTabs = await chrome.tabs.query({ windowId: newWindow.id });
-        const tabIds = windowTabs.map(t => t.id);
-        
-        // Group all tabs together with the category name and color
-        // Only group if we have tabs and colors available
-        if (tabIds.length > 0 && this.availableColors && this.availableColors.length > 0) {
-          try {
-            const color = this.availableColors[colorIndex % this.availableColors.length];
-            const groupId = await chrome.tabs.group({
-              tabIds: tabIds
-            });
-            
-            // Update group with color and category name as title
-            await chrome.tabGroups.update(groupId, {
-              title: category,
-              color: color,
-              collapsed: false
-            });
-            
-            console.log(`✓ Created group "${category}" with color ${color} in window ${newWindow.id}`);
-            colorIndex++;
-          } catch (err) {
-            console.error(`Error creating group for ${category}:`, err);
+      $('applyBtn').disabled = true;
+      this._status('Applying…', 'info');
+
+      if (this.mode === 'workspaces') await this._applyWorkspaces();
+      else if (this.mode === 'stacks') await this._applyStacks();
+      else await this._applyWindows();
+
+      this._status('✅ Tabs sorted!', 'success');
+      if (this.autoClose) setTimeout(() => window.close(), 2000);
+    } catch (e) {
+      console.error('apply:', e);
+      this._status(sanitizeErrorMessage(e.message), 'error');
+      $('applyBtn').disabled = false;
+    }
+  }
+
+  // ── Workspace Mode ───────────────────────────────────────────────────────
+
+  async _applyWorkspaces() {
+    const resp = await chrome.runtime.sendMessage({
+      action: 'organizeToWorkspaces',
+      categorizedTabs: this.analyzedTabs,
+      scope: this.workspaceScope,
+      includeUncategorized: this.includeUncategorized,
+      reassignExisting: this.reassignExisting,
+    });
+    if (!resp?.success) throw new Error(resp?.error || 'Workspace organization failed.');
+  }
+
+  // ── Tab Stacks Mode ──────────────────────────────────────────────────────
+
+  async _applyStacks() {
+    let targetWin;
+    const groups = [];
+
+    if (this.stackScope === 'all') {
+      const wins = await chrome.windows.getAll({ populate: true });
+      if (!wins.length) throw new Error('No browser windows found.');
+      targetWin = wins[0].id;
+
+      // Move tabs from other windows first
+      for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
+        if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
+        for (const t of tabs) {
+          if (t.windowId !== targetWin) {
+            try { await chrome.tabs.move(t.id, { windowId: targetWin, index: -1 }); } catch {}
           }
         }
-        
-        windowsCreated++;
       }
-      
-      console.log(`✓ Created ${windowsCreated} windows with grouped tabs`);
-      
-    } catch (error) {
-      console.error('Error in window mode:', error);
-      throw error;
+
+      // Re-query
+      const fresh = await chrome.tabs.query({ windowId: targetWin });
+      const map = new Map(fresh.map(t => [t.id, t]));
+      for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
+        if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
+        const valid = tabs.map(t => map.get(t.id)).filter(Boolean);
+        if (valid.length) groups.push({ cat, tabs: valid });
+      }
+    } else {
+      const cur = await chrome.windows.getCurrent();
+      targetWin = cur.id;
+      for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
+        if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
+        const inWin = tabs.filter(t => t.windowId === targetWin);
+        if (inWin.length) groups.push({ cat, tabs: inWin });
+      }
     }
-  }
-  
-  showStatus(message, type) {
-    const statusDiv = document.getElementById('status');
-    statusDiv.textContent = message;
-    statusDiv.className = `visible ${type}`;
-  }
-  
-  capitalizeFirst(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
-  
-  // Escape HTML to prevent XSS attacks
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-  
-  // Sanitize error messages to avoid exposing sensitive information
-  sanitizeErrorMessage(message) {
-    if (!message) return 'An unknown error occurred';
-    
-    // Remove any potential API keys (Gemini keys start with "AI" followed by 33+ alphanumeric chars)
-    let sanitized = message.replace(/AI[a-zA-Z0-9_-]{28,}/g, '[API_KEY]');
-    
-    // Remove URLs that might contain sensitive query parameters
-    sanitized = sanitized.replace(/https?:\/\/[^\s]+\?[^\s]+/g, '[URL]');
-    
-    // Keep the message user-friendly
-    if (sanitized.length > 200) {
-      sanitized = sanitized.substring(0, 200) + '...';
+
+    if (!groups.length) throw new Error('No tabs to organise in selected scope.');
+
+    let ci = 0;
+    for (const { cat, tabs } of groups) {
+      // Verify tabs still exist
+      const ids = [];
+      for (const t of tabs) {
+        try { await chrome.tabs.get(t.id); ids.push(t.id); } catch {}
+      }
+      if (!ids.length) continue;
+
+      const gid = await chrome.tabs.group({ tabIds: ids });
+      await chrome.tabGroups.update(gid, {
+        title: cat,
+        color: GROUP_COLORS[ci % GROUP_COLORS.length],
+        collapsed: false,
+      });
+      ci++;
     }
-    
-    return sanitized;
+    await chrome.windows.update(targetWin, { focused: true });
+  }
+
+  // ── Window Mode ──────────────────────────────────────────────────────────
+
+  async _applyWindows() {
+    let ci = 0;
+    for (const [cat, tabs] of Object.entries(this.analyzedTabs)) {
+      if (!tabs.length) continue;
+      if (cat === 'Uncategorized' && !this.includeUncategorized) continue;
+
+      // Create a new window, then move all tabs into it.
+      // Avoid using tabId in create() — if that tab is the last in its
+      // source window, the source window closes unexpectedly.
+      const win = await chrome.windows.create({ focused: false });
+
+      try {
+        await chrome.tabs.move(tabs.map(t => t.id), { windowId: win.id, index: -1 });
+      } catch (e) {
+        console.error('Window mode tab move:', e);
+        // Some tabs may have been closed – skip gracefully
+      }
+
+      // Remove the blank tab that chrome.windows.create() opened
+      const winTabs = await chrome.tabs.query({ windowId: win.id });
+      const blankTab = winTabs.find(t =>
+        !t.url || t.url === '' || t.url === 'chrome://newtab/' || t.url === 'about:blank'
+      );
+      if (blankTab && winTabs.length > 1) {
+        try { await chrome.tabs.remove(blankTab.id); } catch {}
+      }
+
+      // Group inside the new window
+      const freshTabs = await chrome.tabs.query({ windowId: win.id });
+      if (freshTabs.length) {
+        try {
+          const gid = await chrome.tabs.group({ tabIds: freshTabs.map(t => t.id) });
+          await chrome.tabGroups.update(gid, {
+            title: cat,
+            color: GROUP_COLORS[ci % GROUP_COLORS.length],
+            collapsed: false,
+          });
+        } catch {}
+      }
+      ci++;
+    }
   }
 }
 
-// Initialize the tab sorter when popup opens
-document.addEventListener('DOMContentLoaded', () => {
-  new TabSorter();
-});
+// ── Bootstrap ────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => new TabSorter());

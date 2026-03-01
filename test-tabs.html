@@ -3,206 +3,171 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test Tabs Generator - Vivaldi AI Tab Sorter</title>
+  <title>Test Tabs Generator – Vivaldi AI Tab Sorter</title>
   <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      max-width: 800px;
-      margin: 50px auto;
-      padding: 20px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-    }
-    .container {
-      background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(10px);
-      border-radius: 16px;
-      padding: 30px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 10px;
-    }
-    p {
-      text-align: center;
-      margin-bottom: 30px;
-      opacity: 0.9;
-    }
-    .section {
-      margin: 20px 0;
-      padding: 20px;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 12px;
-    }
-    h2 {
-      font-size: 18px;
-      margin-bottom: 15px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 16px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
       color: #fff;
     }
+
+    .card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    }
+
+    h1 { text-align: center; font-size: 22px; margin-bottom: 6px; }
+    .sub { text-align: center; opacity: 0.85; margin-bottom: 22px; font-size: 14px; }
+    h2 { font-size: 15px; margin-bottom: 10px; }
+
+    .group {
+      margin-bottom: 18px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+    }
+
     button {
       width: 100%;
-      padding: 12px;
-      margin: 8px 0;
+      padding: 10px;
+      margin: 5px 0;
       border: none;
-      border-radius: 8px;
-      font-size: 14px;
+      border-radius: 7px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
-      transition: all 0.3s;
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+      transition: background 0.2s, transform 0.15s;
+      font-family: inherit;
     }
+
     button:hover {
-      background: rgba(255, 255, 255, 0.3);
-      transform: translateY(-2px);
+      background: rgba(255, 255, 255, 0.28);
+      transform: translateY(-1px);
     }
-    .btn-primary {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+
+    .primary {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
     }
-    .btn-primary:hover {
-      box-shadow: 0 8px 20px rgba(245, 87, 108, 0.4);
+
+    .primary:hover {
+      box-shadow: 0 6px 16px rgba(245, 87, 108, 0.35);
     }
-    #status {
-      text-align: center;
-      margin-top: 20px;
-      padding: 10px;
+
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px 20px;
       border-radius: 8px;
-      font-size: 14px;
-      display: none;
-    }
-    #status.visible {
-      display: block;
-    }
-    .info {
-      background: rgba(66, 153, 225, 0.3);
-      padding: 15px;
-      border-radius: 8px;
-      margin-top: 20px;
       font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    #toast.show { opacity: 1; }
+
+    .info {
+      margin-top: 16px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.6;
     }
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="card">
     <h1>🧪 Test Tabs Generator</h1>
-    <p>Generate test tabs to try out the Vivaldi AI Tab Sorter</p>
-    
-    <div class="section">
-      <h2>Quick Test Sets</h2>
-      <button onclick="openWorkTabs()">📊 Open Work Tabs (5 tabs)</button>
-      <button onclick="openShoppingTabs()">🛍️ Open Shopping Tabs (5 tabs)</button>
-      <button onclick="openSocialTabs()">💬 Open Social Media Tabs (5 tabs)</button>
-      <button onclick="openResearchTabs()">📚 Open Research Tabs (5 tabs)</button>
-      <button onclick="openEntertainmentTabs()">🎮 Open Entertainment Tabs (5 tabs)</button>
+    <p class="sub">Open sample tabs to try the AI Tab Sorter</p>
+
+    <div class="group">
+      <h2>Quick Sets</h2>
+      <button onclick="open_set('work')">📊 Work (5 tabs)</button>
+      <button onclick="open_set('shopping')">🛍️ Shopping (5 tabs)</button>
+      <button onclick="open_set('social')">💬 Social (5 tabs)</button>
+      <button onclick="open_set('research')">📚 Research (5 tabs)</button>
+      <button onclick="open_set('entertainment')">🎮 Entertainment (5 tabs)</button>
     </div>
-    
-    <div class="section">
-      <h2>Full Test Suite</h2>
-      <button class="btn-primary" onclick="openAllTestTabs()">🚀 Open All Test Tabs (25 tabs)</button>
-      <button onclick="openMixedTabs()">🎲 Open Random Mix (15 tabs)</button>
+
+    <div class="group">
+      <h2>Full Suite</h2>
+      <button class="primary" onclick="open_all()">🚀 All Categories (25 tabs)</button>
+      <button onclick="open_set('mixed')">🎲 Random Mix (15 tabs)</button>
     </div>
-    
-    <div class="section">
+
+    <div class="group">
       <h2>Edge Cases</h2>
-      <button onclick="openDuplicates()">🔄 Open Duplicates (10 tabs)</button>
-      <button onclick="openYouTubeMix()">📺 Open YouTube Mix (8 tabs)</button>
+      <button onclick="open_set('dupes')">🔄 Duplicates (10 tabs)</button>
+      <button onclick="open_set('youtube')">📺 YouTube Mix (8 tabs)</button>
     </div>
-    
-    <div id="status"></div>
-    
+
     <div class="info">
-      <strong>How to use:</strong><br>
-      1. Click any button to open test tabs<br>
-      2. Open the Vivaldi AI Tab Sorter extension<br>
-      3. Enter categories: "Work, Shopping, Social, Research, Entertainment"<br>
-      4. Click "Analyze & Preview"<br>
-      5. Review the categorization<br>
-      6. Click "Apply Sorting" to organize!
+      <strong>How to test:</strong><br>
+      1. Click a button to open tabs.<br>
+      2. Open the AI Tab Sorter extension.<br>
+      3. Set categories: <em>Work, Shopping, Social, Research, Entertainment</em><br>
+      4. Click <strong>Analyze</strong>, review, then <strong>Apply</strong>.
     </div>
   </div>
-  
+
+  <div id="toast"></div>
+
   <script>
-    function showStatus(message) {
-      const status = document.getElementById('status');
-      status.textContent = message;
-      status.className = 'visible';
-      setTimeout(() => {
-        status.className = '';
-      }, 3000);
-    }
-    
-    function openWorkTabs() {
-      const workUrls = [
+    const SETS = {
+      work: [
         'https://github.com',
         'https://mail.google.com',
         'https://calendar.google.com',
         'https://docs.google.com',
-        'https://stackoverflow.com'
-      ];
-      workUrls.forEach(url => window.open(url, '_blank'));
-      showStatus('✅ Opened 5 work tabs');
-    }
-    
-    function openShoppingTabs() {
-      const shoppingUrls = [
+        'https://stackoverflow.com',
+      ],
+      shopping: [
         'https://amazon.com',
         'https://ebay.com',
         'https://walmart.com',
         'https://target.com',
-        'https://bestbuy.com'
-      ];
-      shoppingUrls.forEach(url => window.open(url, '_blank'));
-      showStatus('✅ Opened 5 shopping tabs');
-    }
-    
-    function openSocialTabs() {
-      const socialUrls = [
+        'https://bestbuy.com',
+      ],
+      social: [
         'https://twitter.com',
         'https://facebook.com',
         'https://linkedin.com',
         'https://instagram.com',
-        'https://reddit.com'
-      ];
-      socialUrls.forEach(url => window.open(url, '_blank'));
-      showStatus('✅ Opened 5 social media tabs');
-    }
-    
-    function openResearchTabs() {
-      const researchUrls = [
+        'https://reddit.com',
+      ],
+      research: [
         'https://scholar.google.com',
         'https://wikipedia.org',
         'https://arxiv.org',
         'https://jstor.org',
-        'https://pubmed.ncbi.nlm.nih.gov'
-      ];
-      researchUrls.forEach(url => window.open(url, '_blank'));
-      showStatus('✅ Opened 5 research tabs');
-    }
-    
-    function openEntertainmentTabs() {
-      const entertainmentUrls = [
+        'https://pubmed.ncbi.nlm.nih.gov',
+      ],
+      entertainment: [
         'https://youtube.com',
         'https://netflix.com',
         'https://spotify.com',
         'https://twitch.tv',
-        'https://reddit.com/r/videos'
-      ];
-      entertainmentUrls.forEach(url => window.open(url, '_blank'));
-      showStatus('✅ Opened 5 entertainment tabs');
-    }
-    
-    function openAllTestTabs() {
-      openWorkTabs();
-      setTimeout(() => openShoppingTabs(), 500);
-      setTimeout(() => openSocialTabs(), 1000);
-      setTimeout(() => openResearchTabs(), 1500);
-      setTimeout(() => openEntertainmentTabs(), 2000);
-      showStatus('✅ Opening 25 test tabs...');
-    }
-    
-    function openMixedTabs() {
-      const mixedUrls = [
+        'https://reddit.com/r/videos',
+      ],
+      mixed: [
         'https://github.com/trending',
         'https://news.ycombinator.com',
         'https://producthunt.com',
@@ -217,42 +182,46 @@
         'https://techcrunch.com',
         'https://wired.com',
         'https://arstechnica.com',
-        'https://hacker-news.firebaseapp.com'
-      ];
-      mixedUrls.forEach(url => window.open(url, '_blank'));
-      showStatus('✅ Opened 15 mixed tabs');
+        'https://hacker-news.firebaseapp.com',
+      ],
+      dupes: [
+        'https://github.com','https://github.com',
+        'https://stackoverflow.com','https://stackoverflow.com',
+        'https://youtube.com','https://youtube.com',
+        'https://reddit.com','https://reddit.com',
+        'https://twitter.com','https://twitter.com',
+      ],
+      youtube: [
+        'https://youtube.com/watch?v=dQw4w9WgXcQ',
+        'https://youtube.com/results?search_query=coding+tutorial',
+        'https://youtube.com/results?search_query=cooking+recipe',
+        'https://youtube.com/results?search_query=how+to+program',
+        'https://youtube.com/watch?v=jNQXAC9IVRw',
+        'https://youtube.com/results?search_query=javascript+tutorial',
+        'https://youtube.com/results?search_query=funny+cats',
+        'https://youtube.com/results?search_query=python+course',
+      ],
+    };
+
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
     }
-    
-    function openDuplicates() {
-      const urls = [
-        'https://github.com',
-        'https://github.com',
-        'https://stackoverflow.com',
-        'https://stackoverflow.com',
-        'https://youtube.com',
-        'https://youtube.com',
-        'https://reddit.com',
-        'https://reddit.com',
-        'https://twitter.com',
-        'https://twitter.com'
-      ];
-      urls.forEach(url => window.open(url, '_blank'));
-      showStatus('✅ Opened 10 tabs (5 pairs of duplicates)');
+
+    function open_set(name) {
+      const urls = SETS[name];
+      if (!urls) return;
+      urls.forEach(u => window.open(u, '_blank'));
+      toast('✅ Opened ' + urls.length + ' tabs');
     }
-    
-    function openYouTubeMix() {
-      const youtubeUrls = [
-        'https://youtube.com/watch?v=dQw4w9WgXcQ',  // Music
-        'https://youtube.com/results?search_query=coding+tutorial',  // Work
-        'https://youtube.com/results?search_query=cooking+recipe',  // Entertainment
-        'https://youtube.com/results?search_query=how+to+program',  // Work
-        'https://youtube.com/watch?v=jNQXAC9IVRw',  // Music
-        'https://youtube.com/results?search_query=javascript+tutorial',  // Work
-        'https://youtube.com/results?search_query=funny+cats',  // Entertainment
-        'https://youtube.com/results?search_query=python+course'  // Work
-      ];
-      youtubeUrls.forEach(url => window.open(url, '_blank'));
-      showStatus('✅ Opened 8 YouTube tabs (mixed content)');
+
+    function open_all() {
+      ['work','shopping','social','research','entertainment'].forEach((s, i) => {
+        setTimeout(() => open_set(s), i * 400);
+      });
+      toast('✅ Opening 25 tabs…');
     }
   </script>
 </body>
