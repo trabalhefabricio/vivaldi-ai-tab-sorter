@@ -403,28 +403,35 @@ class TabSorter {
 
   _detectBrowser() {
     this.browser = /Vivaldi/.test(navigator.userAgent) ? 'vivaldi' : 'chrome';
+
+    const stackOption = $('modeStacks')?.closest('.mode-option');
+    const wsOption = $('modeWorkspaces')?.closest('.mode-option');
+
     if (this.browser === 'chrome') {
       // Chrome: rename "Tab Stacks" to "Tab Groups"
-      const stackTitle = document.querySelector('#modeStacks')?.closest('.mode-option')?.querySelector('.mode-title');
-      if (stackTitle) stackTitle.textContent = '📚 Tab Groups';
-      const stackDesc = document.querySelector('#modeStacks')?.closest('.mode-option')?.querySelector('.mode-desc');
-      if (stackDesc) stackDesc.textContent = 'Chrome tab groups with color labels';
+      if (stackOption) {
+        const title = stackOption.querySelector('.mode-title');
+        const desc = stackOption.querySelector('.mode-desc');
+        if (title) title.textContent = '📚 Tab Groups';
+        if (desc) desc.textContent = 'Chrome tab groups with color labels';
+      }
 
       // Disable Workspaces mode in Chrome (Vivaldi only)
       const wsRadio = $('modeWorkspaces');
-      if (wsRadio) {
+      if (wsRadio && wsOption) {
         wsRadio.disabled = true;
-        const wsTitle = wsRadio.closest('.mode-option')?.querySelector('.mode-title');
-        if (wsTitle) wsTitle.textContent = '🏆 Workspaces (Vivaldi only)';
-        const wsDesc = wsRadio.closest('.mode-option')?.querySelector('.mode-desc');
-        if (wsDesc) wsDesc.textContent = 'Not available in Chrome – use Tab Groups or Windows mode';
-        const wsOption = wsRadio.closest('.mode-option');
-        if (wsOption) wsOption.style.opacity = '0.5';
+        const title = wsOption.querySelector('.mode-title');
+        const desc = wsOption.querySelector('.mode-desc');
+        if (title) title.textContent = '🏆 Workspaces (Vivaldi only)';
+        if (desc) desc.textContent = 'Not available in Chrome – use Tab Groups or Windows mode';
+        wsOption.style.opacity = '0.5';
       }
     } else {
       // Vivaldi: enhance Tab Stacks description
-      const stackDesc = document.querySelector('#modeStacks')?.closest('.mode-option')?.querySelector('.mode-desc');
-      if (stackDesc) stackDesc.textContent = 'Vivaldi tab stacks with color-coded labels (supports tab piling)';
+      if (stackOption) {
+        const desc = stackOption.querySelector('.mode-desc');
+        if (desc) desc.textContent = 'Vivaldi tab stacks with color-coded labels (supports tab piling)';
+      }
     }
   }
 
