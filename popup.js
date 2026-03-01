@@ -979,7 +979,13 @@ fi
 
   async _getAllTabs() {
     const tabs = await chrome.tabs.query({});
-    return tabs.map(t => ({ id: t.id, title: t.title || '', url: t.url || '', windowId: t.windowId, index: t.index }));
+    return tabs.map(t => ({
+      id: t.id,
+      title: t.title || '',
+      url: t.url || t.pendingUrl || '',
+      windowId: t.windowId,
+      index: t.index,
+    }));
   }
 
   _dedup(tabs) {
@@ -987,6 +993,7 @@ fi
     const unique = [];
     const dupeIds = [];
     for (const t of tabs) {
+      if (!t.url) { unique.push(t); continue; }
       if (seen.has(t.url)) { dupeIds.push(t.id); }
       else { seen.add(t.url); unique.push(t); }
     }

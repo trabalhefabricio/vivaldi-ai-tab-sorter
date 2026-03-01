@@ -115,6 +115,28 @@ function repairTruncatedJSON(json) {
   return null;
 }
 
+function normalizeTab(t) {
+  return {
+    id: t.id,
+    title: t.title || '',
+    url: t.url || t.pendingUrl || '',
+    windowId: t.windowId,
+    index: t.index,
+  };
+}
+
+function dedup(tabs) {
+  const seen = new Set();
+  const unique = [];
+  const dupeIds = [];
+  for (const t of tabs) {
+    if (!t.url) { unique.push(t); continue; }
+    if (seen.has(t.url)) { dupeIds.push(t.id); }
+    else { seen.add(t.url); unique.push(t); }
+  }
+  return { unique, dupeIds };
+}
+
 // ── Test runner ─────────────────────────────────────────────────────────────
 
 let passed = 0;
@@ -464,6 +486,60 @@ console.log('\n📋 Bridge Code Preservation');
 
   // Correct approach: no escaping for << 'HEREDOC' (quoted delimiter = literal content)
   assert(bridgeCode.includes("=== 'undefined'"), 'unescaped code preserves quotes for heredoc');
+}
+
+// ── Tests: Tab Hibernation Handling ──────────────────────────────────────────
+
+console.log('\n📋 Tab Hibernation Handling');
+
+console.log('\n  ─ normalizeTab uses pendingUrl as URL fallback');
+{
+  const tab = { id: 1, title: 'GitHub', url: '', pendingUrl: 'https://github.com', windowId: 1, index: 0 };
+  const result = normalizeTab(tab);
+  assertEqual(result.url, 'https://github.com', 'pendingUrl used when url is empty');
+}
+
+{
+  const tab = { id: 2, title: 'Gmail', url: undefined, pendingUrl: 'https://mail.google.com', windowId: 1, index: 1 };
+  const result = normalizeTab(tab);
+  assertEqual(result.url, 'https://mail.google.com', 'pendingUrl used when url is undefined');
+}
+
+{
+  const tab = { id: 3, title: 'YouTube', url: 'https://youtube.com', pendingUrl: 'https://youtube.com/watch', windowId: 1, index: 2 };
+  const result = normalizeTab(tab);
+  assertEqual(result.url, 'https://youtube.com', 'url preferred over pendingUrl when both present');
+}
+
+{
+  const tab = { id: 4, title: '', url: '', pendingUrl: '', windowId: 1, index: 3 };
+  const result = normalizeTab(tab);
+  assertEqual(result.url, '', 'empty string when both url and pendingUrl are empty');
+  assertEqual(result.title, '', 'empty title preserved');
+}
+
+console.log('\n  ─ dedup skips tabs with empty URLs');
+{
+  const tabs = [
+    { id: 1, title: 'GitHub', url: 'https://github.com' },
+    { id: 2, title: '', url: '' },
+    { id: 3, title: '', url: '' },
+    { id: 4, title: 'Gmail', url: 'https://mail.google.com' },
+  ];
+  const { unique, dupeIds } = dedup(tabs);
+  assertEqual(unique.length, 4, 'empty-URL tabs not deduped against each other');
+  assertEqual(dupeIds.length, 0, 'no tabs flagged as duplicates');
+}
+
+{
+  const tabs = [
+    { id: 1, title: 'GitHub', url: 'https://github.com' },
+    { id: 2, title: 'GitHub 2', url: 'https://github.com' },
+    { id: 3, title: '', url: '' },
+  ];
+  const { unique, dupeIds } = dedup(tabs);
+  assertEqual(unique.length, 2, 'real duplicate still detected');
+  assertEqual(dupeIds, [2], 'duplicate tab ID identified');
 }
 
 // ── Results ─────────────────────────────────────────────────────────────────
