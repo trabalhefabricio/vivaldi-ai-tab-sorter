@@ -57,7 +57,7 @@ Or clone the repo directly if you prefer loading from source.
 |----------|--------|-----------|---------|
 | **Google Gemini** | Gemini 2.0 Flash, 1.5 Pro, etc. | ✅ 1 500 req/day | [Get key](https://aistudio.google.com/app/apikey) |
 | **OpenAI** | GPT-4o-mini | ❌ | [Get key](https://platform.openai.com/api-keys) |
-| **Anthropic Claude** | Claude 3 Opus, Sonnet, Haiku | ❌ | [Get key](https://console.anthropic.com/) |
+| **Anthropic Claude** | Claude 4 Sonnet | ❌ | [Get key](https://console.anthropic.com/) |
 
 Select your provider and model directly in the popup — no config files needed.
 

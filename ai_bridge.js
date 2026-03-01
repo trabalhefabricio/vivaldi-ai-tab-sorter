@@ -36,7 +36,7 @@
       if (cmd.action === 'test') {
         await respond({ success: true, message: 'Bridge OK' });
       } else if (cmd.action === 'organize') {
-        await organise(cmd.categorizedTabs);
+        await organise(cmd.categorizedTabs, cmd.includeUncategorized, cmd.reassignExisting);
         await respond({ success: true });
       }
     } catch (err) {
@@ -84,12 +84,13 @@
 
   // ── Main organise routine ────────────────────────────────────────────────
 
-  async function organise(categorized) {
+  async function organise(categorized, includeUncategorized = false, reassignExisting = true) {
     const existing = await getWorkspaces();
     const nameToId = new Map(existing.map(w => [w.title, w.id]));
 
     for (const [category, tabs] of Object.entries(categorized)) {
-      if (!tabs.length || category === 'Uncategorized') continue;
+      if (!tabs.length) continue;
+      if (!includeUncategorized && category === 'Uncategorized') continue;
 
       let wsId = nameToId.get(category);
       if (!wsId) {

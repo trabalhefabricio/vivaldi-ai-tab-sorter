@@ -156,8 +156,13 @@ class TabSorter {
       bar.classList.add('visible');
       const pct = Math.round((this.reqCount / DAILY_LIMIT) * 100);
       const clr = pct > 80 ? '#f56565' : pct > 60 ? '#ed8936' : '#48bb78';
-      txt.innerHTML =
-        `📊 Today: <span style="color:${clr};font-weight:700">${this.reqCount}/${DAILY_LIMIT}</span> requests (${pct}%)`;
+      txt.textContent = '';
+      txt.append('📊 Today: ');
+      const span = document.createElement('span');
+      span.style.color = clr;
+      span.style.fontWeight = '700';
+      span.textContent = `${this.reqCount}/${DAILY_LIMIT}`;
+      txt.append(span, ` requests (${pct}%)`);
     } else {
       bar.classList.remove('visible');
     }
@@ -276,7 +281,7 @@ class TabSorter {
 
   _showPreview(cats) {
     const el = $('preview');
-    el.innerHTML = '';
+    el.replaceChildren();
 
     const heading = document.createElement('div');
     heading.className = 'preview-heading';
@@ -607,7 +612,7 @@ echo "Done! Restart Vivaldi to activate the bridge."
 
       const sel = $('modelSelect');
       const prev = sel.value;
-      sel.innerHTML = '';
+      sel.replaceChildren();
       for (const m of models) {
         const name = m.name.replace('models/', '');
         const opt = document.createElement('option');
