@@ -26,7 +26,7 @@ chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
 // ── Workspace Support Detection ──────────────────────────────────────────────
 
 async function checkWorkspaceSupport() {
-  // Check 1: Direct Vivaldi API in service worker context
+  // Check 1: Direct Vivaldi API — vivaldi.workspaces
   if (typeof vivaldi !== 'undefined' && vivaldi.workspaces) {
     try {
       await new Promise((resolve, reject) => {
@@ -39,7 +39,20 @@ async function checkWorkspaceSupport() {
     } catch { /* fall through */ }
   }
 
-  // Check 2: Bridge via storage ping
+  // Check 2: Alternative Vivaldi API — vivaldi.workspacesPrivate
+  if (typeof vivaldi !== 'undefined' && vivaldi.workspacesPrivate) {
+    try {
+      await new Promise((resolve, reject) => {
+        vivaldi.workspacesPrivate.getAll(ws => {
+          if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+          else resolve(ws);
+        });
+      });
+      return { available: true, method: 'direct-private' };
+    } catch { /* fall through */ }
+  }
+
+  // Check 3: Bridge via storage ping
   try {
     await chrome.storage.local.set({
       workspaceCommand: { action: 'test', timestamp: Date.now() },
@@ -58,7 +71,7 @@ async function checkWorkspaceSupport() {
 // ── Workspace Organisation ───────────────────────────────────────────────────
 
 async function organizeWorkspaces(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true) {
-  // Approach 1: Direct Vivaldi API (no bridge needed)
+  // Approach 1: Direct Vivaldi API — vivaldi.workspaces
   if (typeof vivaldi !== 'undefined' && vivaldi.workspaces) {
     try {
       return await organizeViaDirect(categorized, scope, includeUncategorized, reassignExisting);
@@ -67,7 +80,16 @@ async function organizeWorkspaces(categorized, scope = 'all', includeUncategoriz
     }
   }
 
-  // Approach 2: Bridge communication
+  // Approach 2: Alternative Vivaldi API — vivaldi.workspacesPrivate
+  if (typeof vivaldi !== 'undefined' && vivaldi.workspacesPrivate) {
+    try {
+      return await organizeViaDirect(categorized, scope, includeUncategorized, reassignExisting, vivaldi.workspacesPrivate);
+    } catch (e) {
+      console.log('Private Vivaldi API failed:', e.message);
+    }
+  }
+
+  // Approach 3: Bridge communication
   try {
     return await organizeViaBridge(categorized, scope, includeUncategorized, reassignExisting);
   } catch (e) {
@@ -75,28 +97,29 @@ async function organizeWorkspaces(categorized, scope = 'all', includeUncategoriz
   }
 
   throw new Error(
-    'Workspace API not available. Click "Setup Bridge" in the popup to install, then restart Vivaldi.',
+    'Workspace API not available. Install the bridge or use Tab Stacks mode (works without a bridge).',
   );
 }
 
-// Direct Vivaldi API (works if vivaldi.workspaces is exposed to extensions)
-async function organizeViaDirect(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true) {
+// Direct Vivaldi API (works if vivaldi.workspaces or vivaldi.workspacesPrivate is exposed)
+async function organizeViaDirect(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true, wsApi = null) {
+  const api = wsApi || vivaldi.workspaces;
   const getAll = () => new Promise((resolve, reject) => {
-    vivaldi.workspaces.getAll(ws => {
+    api.getAll(ws => {
       if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
       else resolve(ws || []);
     });
   });
   const create = title => new Promise((resolve, reject) => {
-    vivaldi.workspaces.create({ title }, ws => {
+    api.create({ title }, ws => {
       if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
       else if (ws?.id) resolve(ws.id);
       else reject(new Error('Failed to create workspace'));
     });
   });
   const moveTab = (tabId, wsId) => new Promise(resolve => {
-    if (vivaldi.workspaces.addTab) {
-      vivaldi.workspaces.addTab(wsId, tabId, () => resolve());
+    if (api.addTab) {
+      api.addTab(wsId, tabId, () => resolve());
     } else if (typeof vivaldi !== 'undefined' && vivaldi.tabsPrivate?.setWorkspace) {
       vivaldi.tabsPrivate.setWorkspace(tabId, wsId, () => resolve());
     } else {

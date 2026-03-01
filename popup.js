@@ -568,17 +568,22 @@ class TabSorter {
     try {
       const result = await chrome.runtime.sendMessage({ action: 'checkWorkspaceSupport' });
       if (result?.available) {
-        const label = result.method === 'direct' ? 'Direct API' : 'Bridge';
+        const labels = {
+          'direct': 'Direct API',
+          'direct-private': 'Private API',
+          'bridge': 'Bridge',
+        };
+        const label = labels[result.method] || result.method;
         indicator.textContent = `✅ ${label} connected – workspaces ready`;
         indicator.className = 'bridge-indicator success';
         setupArea.style.display = 'none';
       } else {
-        indicator.textContent = '⚠️ Bridge not detected – install to enable workspaces';
+        indicator.textContent = '⚠️ Workspace API not detected – install bridge or try Tab Stacks mode';
         indicator.className = 'bridge-indicator warn';
         setupArea.style.display = '';
       }
     } catch {
-      indicator.textContent = '⚠️ Could not check – install bridge for workspaces';
+      indicator.textContent = '⚠️ Could not check – install bridge or use Tab Stacks mode';
       indicator.className = 'bridge-indicator warn';
       setupArea.style.display = '';
     } finally {
@@ -714,8 +719,10 @@ if (Test-Path "$target\\window.html.backup") {
 Write-Host ""
 if ($verifyErrors -eq 0) {
   Write-Host "Done! Restart Vivaldi to activate the bridge." -ForegroundColor Cyan
+  exit 0
 } else {
   Write-Host "$verifyErrors verification check(s) failed. Please review errors above." -ForegroundColor Red
+  exit 1
 }
 `;
   }
@@ -795,8 +802,10 @@ fi
 echo ""
 if [ $ERRORS -eq 0 ]; then
   echo "Done! Restart Vivaldi to activate the bridge."
+  exit 0
 else
   echo "$ERRORS verification check(s) failed. Please review errors above."
+  exit 1
 fi
 `;
   }
@@ -883,8 +892,10 @@ fi
 echo ""
 if [ $ERRORS -eq 0 ]; then
   echo "Done! Restart Vivaldi to activate the bridge."
+  exit 0
 else
   echo "$ERRORS verification check(s) failed. Please review errors above."
+  exit 1
 fi
 `;
   }
