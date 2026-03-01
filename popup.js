@@ -568,17 +568,22 @@ class TabSorter {
     try {
       const result = await chrome.runtime.sendMessage({ action: 'checkWorkspaceSupport' });
       if (result?.available) {
-        const label = result.method === 'direct' ? 'Direct API' : 'Bridge';
+        const labels = {
+          'direct': 'Direct API',
+          'direct-private': 'Private API',
+          'bridge': 'Bridge',
+        };
+        const label = labels[result.method] || result.method;
         indicator.textContent = `✅ ${label} connected – workspaces ready`;
         indicator.className = 'bridge-indicator success';
         setupArea.style.display = 'none';
       } else {
-        indicator.textContent = '⚠️ Bridge not detected – install to enable workspaces';
+        indicator.textContent = '⚠️ Workspace API not detected – install bridge or try Tab Stacks mode';
         indicator.className = 'bridge-indicator warn';
         setupArea.style.display = '';
       }
     } catch {
-      indicator.textContent = '⚠️ Could not check – install bridge for workspaces';
+      indicator.textContent = '⚠️ Could not check – install bridge or use Tab Stacks mode';
       indicator.className = 'bridge-indicator warn';
       setupArea.style.display = '';
     } finally {
@@ -631,15 +636,20 @@ class TabSorter {
     const runCmd = isWin
       ? `Right-click ${filename} → "Run with PowerShell"`
       : `chmod +x ${filename} && ./${filename}`;
-    this._status(`Downloaded ${filename}. Run it: ${runCmd}`, 'info');
+    this._status(`Downloaded ${filename}. Close Vivaldi first, then run: ${runCmd}`, 'info');
   }
 
   _genPowerShell(ver, bridgeCode) {
-    const escapedBridgeCode = bridgeCode.replace(/'/g, "''");
     return `# install_bridge.ps1 – Vivaldi AI Tab Sorter bridge installer
 # Run: Right-click -> "Run with PowerShell"  (or:  powershell -ExecutionPolicy Bypass -File install_bridge.ps1)
 
 $ErrorActionPreference = "Stop"
+
+# Check if Vivaldi is running
+if (Get-Process vivaldi -ErrorAction SilentlyContinue) {
+  Write-Host "ERROR: Vivaldi is currently running. Please close it completely and re-run this script." -ForegroundColor Red
+  exit 1
+}
 
 # Find Vivaldi resources directory
 $base = "$env:LOCALAPPDATA\\Vivaldi\\Application"
@@ -656,12 +666,15 @@ Write-Host "Found Vivaldi at: $target" -ForegroundColor Cyan
 $backup = "$target\\window.html.backup"
 if (-Not (Test-Path $backup)) {
   Copy-Item "$target\\window.html" $backup
+  if (-Not (Test-Path $backup)) { Write-Error "Failed to create backup."; exit 1 }
   Write-Host "Backed up window.html" -ForegroundColor Green
+} else {
+  Write-Host "Backup already exists - skipping." -ForegroundColor Yellow
 }
 
 # Write bridge script
 $bridge = @'
-${escapedBridgeCode}
+${bridgeCode}
 '@
 Set-Content -Path "$target\\ai_bridge.js" -Value $bridge -Encoding UTF8
 Write-Host "Wrote ai_bridge.js" -ForegroundColor Green
@@ -669,24 +682,63 @@ Write-Host "Wrote ai_bridge.js" -ForegroundColor Green
 # Patch window.html
 $html = Get-Content "$target\\window.html" -Raw
 if ($html -match 'ai_bridge\\.js') {
-  Write-Host "Script tag already present – skipping." -ForegroundColor Yellow
+  Write-Host "Script tag already present - skipping." -ForegroundColor Yellow
 } else {
-  $html = $html -replace '</body>', '  <script src="ai_bridge.js"></script>\\n</body>'
+  $scriptLine = '  <script src="ai_bridge.js"></script>'
+  $html = $html -replace '</body>', ($scriptLine + [char]10 + '</body>')
   Set-Content -Path "$target\\window.html" -Value $html -Encoding UTF8
   Write-Host "Patched window.html" -ForegroundColor Green
 }
 
-Write-Host "\\nDone! Restart Vivaldi to activate the bridge." -ForegroundColor Cyan
+# Verification
+Write-Host ""
+Write-Host "=== Verification ===" -ForegroundColor Cyan
+$verifyErrors = 0
+
+if (Test-Path "$target\\ai_bridge.js") {
+  Write-Host "  OK  ai_bridge.js exists" -ForegroundColor Green
+} else {
+  Write-Host "  FAIL  ai_bridge.js not found" -ForegroundColor Red
+  $verifyErrors++
+}
+
+if ((Get-Content "$target\\window.html" -Raw) -match 'ai_bridge\\.js') {
+  Write-Host "  OK  Script tag present in window.html" -ForegroundColor Green
+} else {
+  Write-Host "  FAIL  Script tag missing from window.html" -ForegroundColor Red
+  $verifyErrors++
+}
+
+if (Test-Path "$target\\window.html.backup") {
+  Write-Host "  OK  Backup exists" -ForegroundColor Green
+} else {
+  Write-Host "  FAIL  No backup found" -ForegroundColor Red
+  $verifyErrors++
+}
+
+Write-Host ""
+if ($verifyErrors -eq 0) {
+  Write-Host "Done! Restart Vivaldi to activate the bridge." -ForegroundColor Cyan
+  exit 0
+} else {
+  Write-Host "$verifyErrors verification check(s) failed. Please review errors above." -ForegroundColor Red
+  exit 1
+}
 `;
   }
 
   _genBashMac(ver, bridgeCode) {
-    const escapedBridgeCode = bridgeCode.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
     return `#!/usr/bin/env bash
 # install_bridge.sh – Vivaldi AI Tab Sorter bridge installer (macOS)
 # Run:  chmod +x install_bridge.sh && ./install_bridge.sh
 
 set -euo pipefail
+
+# Check if Vivaldi is running
+if pgrep -x "Vivaldi" > /dev/null 2>&1; then
+  echo "ERROR: Vivaldi is currently running. Please close it completely and re-run this script."
+  exit 1
+fi
 
 BASE="/Applications/Vivaldi.app/Contents/Versions"
 if [ ! -d "$BASE" ]; then echo "Vivaldi not found at $BASE"; exit 1; fi
@@ -698,62 +750,153 @@ if [ ! -f "$TARGET/window.html" ]; then echo "window.html not found in $TARGET";
 echo "Found Vivaldi at: $TARGET"
 
 # Backup
-[ ! -f "$TARGET/window.html.backup" ] && cp "$TARGET/window.html" "$TARGET/window.html.backup" && echo "Backed up window.html"
+if [ ! -f "$TARGET/window.html.backup" ]; then
+  cp "$TARGET/window.html" "$TARGET/window.html.backup"
+  [ -f "$TARGET/window.html.backup" ] || { echo "ERROR: Failed to create backup."; exit 1; }
+  echo "Backed up window.html"
+else
+  echo "Backup already exists - skipping."
+fi
 
 # Write bridge script
 cat > "$TARGET/ai_bridge.js" << 'BRIDGEOF'
-${escapedBridgeCode}
+${bridgeCode}
 BRIDGEOF
 echo "Wrote ai_bridge.js"
 
 # Patch window.html
 if grep -q 'ai_bridge\\.js' "$TARGET/window.html"; then
-  echo "Script tag already present – skipping."
+  echo "Script tag already present - skipping."
 else
-  sed -i '' 's|</body>|  <script src="ai_bridge.js"></script>\\n</body>|' "$TARGET/window.html"
+  sed -i '' 's|</body>|<script src="ai_bridge.js"></script>\\
+</body>|' "$TARGET/window.html"
   echo "Patched window.html"
 fi
 
+# Verification
 echo ""
-echo "Done! Restart Vivaldi to activate the bridge."
+echo "=== Verification ==="
+ERRORS=0
+
+if [ -f "$TARGET/ai_bridge.js" ]; then
+  echo "  OK  ai_bridge.js exists"
+else
+  echo "  FAIL  ai_bridge.js not found"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if grep -q 'ai_bridge\\.js' "$TARGET/window.html"; then
+  echo "  OK  Script tag present in window.html"
+else
+  echo "  FAIL  Script tag missing from window.html"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if [ -f "$TARGET/window.html.backup" ]; then
+  echo "  OK  Backup exists"
+else
+  echo "  FAIL  No backup found"
+  ERRORS=$((ERRORS + 1))
+fi
+
+echo ""
+if [ $ERRORS -eq 0 ]; then
+  echo "Done! Restart Vivaldi to activate the bridge."
+  exit 0
+else
+  echo "$ERRORS verification check(s) failed. Please review errors above."
+  exit 1
+fi
 `;
   }
 
   _genBashLinux(bridgeCode) {
-    const escapedBridgeCode = bridgeCode.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
     return `#!/usr/bin/env bash
 # install_bridge.sh – Vivaldi AI Tab Sorter bridge installer (Linux)
 # Run:  chmod +x install_bridge.sh && sudo ./install_bridge.sh
 
 set -euo pipefail
 
+# Check if Vivaldi is running
+if pgrep -x "vivaldi-bin" > /dev/null 2>&1 || pgrep -x "vivaldi" > /dev/null 2>&1; then
+  echo "ERROR: Vivaldi is currently running. Please close it completely and re-run this script."
+  exit 1
+fi
+
 # Try common Vivaldi paths
-for BASE in /opt/vivaldi/resources/vivaldi /usr/lib/vivaldi/resources/vivaldi /snap/vivaldi/current/opt/vivaldi/resources/vivaldi; do
-  [ -f "$BASE/window.html" ] && TARGET="$BASE" && break
+TARGET=""
+for BASE in \\
+  /opt/vivaldi/resources/vivaldi \\
+  /usr/lib/vivaldi/resources/vivaldi \\
+  /snap/vivaldi/current/opt/vivaldi/resources/vivaldi \\
+  /var/lib/flatpak/app/com.vivaldi.Vivaldi/current/active/files/opt/vivaldi/resources/vivaldi; do
+  if [ -f "$BASE/window.html" ]; then
+    TARGET="$BASE"
+    break
+  fi
 done
-if [ -z "\${TARGET:-}" ]; then echo "Vivaldi resources not found. Check your install path."; exit 1; fi
+if [ -z "$TARGET" ]; then echo "Vivaldi resources not found. Check your install path."; exit 1; fi
 
 echo "Found Vivaldi at: $TARGET"
 
 # Backup
-[ ! -f "$TARGET/window.html.backup" ] && cp "$TARGET/window.html" "$TARGET/window.html.backup" && echo "Backed up window.html"
+if [ ! -f "$TARGET/window.html.backup" ]; then
+  cp "$TARGET/window.html" "$TARGET/window.html.backup"
+  [ -f "$TARGET/window.html.backup" ] || { echo "ERROR: Failed to create backup."; exit 1; }
+  echo "Backed up window.html"
+else
+  echo "Backup already exists - skipping."
+fi
 
 # Write bridge script
 cat > "$TARGET/ai_bridge.js" << 'BRIDGEOF'
-${escapedBridgeCode}
+${bridgeCode}
 BRIDGEOF
 echo "Wrote ai_bridge.js"
 
 # Patch window.html
 if grep -q 'ai_bridge\\.js' "$TARGET/window.html"; then
-  echo "Script tag already present – skipping."
+  echo "Script tag already present - skipping."
 else
-  sed -i 's|</body>|  <script src="ai_bridge.js"></script>\\n</body>|' "$TARGET/window.html"
+  sed -i 's|</body>|<script src="ai_bridge.js"></script>\\
+</body>|' "$TARGET/window.html"
   echo "Patched window.html"
 fi
 
+# Verification
 echo ""
-echo "Done! Restart Vivaldi to activate the bridge."
+echo "=== Verification ==="
+ERRORS=0
+
+if [ -f "$TARGET/ai_bridge.js" ]; then
+  echo "  OK  ai_bridge.js exists"
+else
+  echo "  FAIL  ai_bridge.js not found"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if grep -q 'ai_bridge\\.js' "$TARGET/window.html"; then
+  echo "  OK  Script tag present in window.html"
+else
+  echo "  FAIL  Script tag missing from window.html"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if [ -f "$TARGET/window.html.backup" ]; then
+  echo "  OK  Backup exists"
+else
+  echo "  FAIL  No backup found"
+  ERRORS=$((ERRORS + 1))
+fi
+
+echo ""
+if [ $ERRORS -eq 0 ]; then
+  echo "Done! Restart Vivaldi to activate the bridge."
+  exit 0
+else
+  echo "$ERRORS verification check(s) failed. Please review errors above."
+  exit 1
+fi
 `;
   }
 

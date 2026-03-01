@@ -273,6 +273,38 @@ assertEqual(sanitizeErrorMessage(undefined), 'An unknown error occurred', 'undef
   assert(result.endsWith('…'), 'truncated message ends with ellipsis');
 }
 
+// ── Tests: Bridge Code Preservation ─────────────────────────────────────────
+
+console.log('\n📋 Bridge Code Preservation');
+
+// The installer scripts use heredoc/here-string syntax that treats content literally.
+// The bridge code must NOT be escaped for these contexts.
+
+{
+  const bridgeCode = "if (typeof vivaldi === 'undefined') { console.warn('[AI Tab Sorter] not available'); }";
+
+  // Old PowerShell escaping doubled single quotes – verify this corrupts the code
+  const wrongPs = bridgeCode.replace(/'/g, "''");
+  assert(wrongPs !== bridgeCode, 'old PS escaping modifies bridge code (confirms bug)');
+  assert(wrongPs.includes("''undefined''"), 'old PS escaping doubles quotes');
+
+  // Correct approach: no escaping for @'...'@ literal here-string
+  assert(bridgeCode.includes("=== 'undefined'"), 'unescaped code preserves single quotes');
+  assert(bridgeCode.includes("'[AI Tab Sorter]"), 'unescaped code preserves bracket quotes');
+}
+
+{
+  const bridgeCode = "if (typeof vivaldi === 'undefined') { console.warn('[AI Tab Sorter] not available'); }";
+
+  // Old Bash escaping shell-escaped single quotes – verify this corrupts the code
+  const wrongBash = bridgeCode.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+  assert(wrongBash !== bridgeCode, 'old Bash escaping modifies bridge code (confirms bug)');
+  assert(wrongBash.includes("'\\''undefined'\\''"), 'old Bash escaping shell-escapes quotes');
+
+  // Correct approach: no escaping for << 'HEREDOC' (quoted delimiter = literal content)
+  assert(bridgeCode.includes("=== 'undefined'"), 'unescaped code preserves quotes for heredoc');
+}
+
 // ── Results ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${'─'.repeat(50)}`);
