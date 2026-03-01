@@ -9,6 +9,13 @@ const DAILY_LIMIT = 1400;     // stay under Google's 1 500/day free‑tier cap
 const CHUNK_THRESHOLD = 100;  // call AI once if tab count ≤ this
 const CHUNK_SIZE = 80;        // tabs per AI request when chunking
 
+// Animal codenames for API key labels
+const KEY_CODENAMES = {
+  gemini: { emoji: '🦊', name: 'Fox' },
+  openai: { emoji: '🦉', name: 'Owl' },
+  claude: { emoji: '🐬', name: 'Dolphin' },
+};
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function $(id) { return document.getElementById(id); }
@@ -99,6 +106,7 @@ class TabSorter {
       if (d.openaiModel) { const el = $('openaiModelSelect'); if (el) el.value = d.openaiModel; this.openaiModel = d.openaiModel; }
       if (d.claudeModel) { const el = $('claudeModelSelect'); if (el) el.value = d.claudeModel; this.claudeModel = d.claudeModel; }
       this._refreshUsage();
+      this._updateKeyStatus();
     } catch (e) { console.error('loadSettings:', e); }
   }
 
@@ -122,6 +130,7 @@ class TabSorter {
         openaiModel: this.openaiModel,
         claudeModel: this.claudeModel,
       });
+      this._updateKeyStatus();
     } catch (e) { console.error('saveSettings:', e); }
   }
 
@@ -172,6 +181,28 @@ class TabSorter {
       txt.append(span, ` requests (${pct}%)`);
     } else {
       bar.classList.remove('visible');
+    }
+  }
+
+  // ── Key Status Indicators ────────────────────────────────────────────────
+
+  _updateKeyStatus() {
+    const keys = [
+      { id: 'geminiKeyStatus', value: this.apiKey,    provider: 'gemini' },
+      { id: 'openaiKeyStatus', value: this.openaiKey, provider: 'openai' },
+      { id: 'claudeKeyStatus', value: this.claudeKey, provider: 'claude' },
+    ];
+    for (const k of keys) {
+      const el = $(k.id);
+      if (!el) continue;
+      const cn = KEY_CODENAMES[k.provider];
+      if (k.value) {
+        el.textContent = `✓ ${cn.name} saved`;
+        el.className = 'key-status visible saved';
+      } else {
+        el.textContent = '';
+        el.className = 'key-status';
+      }
     }
   }
 
@@ -288,6 +319,27 @@ class TabSorter {
     const copyBtn = $('copyCommandsBtn');
     if (copyBtn) copyBtn.addEventListener('click', () => this._copyCommands());
 
+    // Show/hide key toggle buttons
+    document.querySelectorAll('.toggle-vis').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = $(btn.dataset.target);
+        if (!input) return;
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        btn.textContent = showing ? '👁' : '🙈';
+      });
+    });
+
+    // Export / Import settings
+    const exportBtn = $('exportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => this._exportSettings());
+    const importBtn = $('importBtn');
+    const importFile = $('importFile');
+    if (importBtn && importFile) {
+      importBtn.addEventListener('click', () => importFile.click());
+      importFile.addEventListener('change', e => this._importSettings(e));
+    }
+
     this._updateProviderFields();
     this._updateWorkspaceSetup();
   }
@@ -398,6 +450,92 @@ class TabSorter {
       () => this._status('✓ Command copied to clipboard!', 'success'),
       () => this._status('Failed to copy to clipboard.', 'error'),
     );
+  }
+
+  // ── Export / Import Settings ────────────────────────────────────────────
+
+  _exportSettings() {
+    const data = {
+      _format: 'vivaldi-ai-tab-sorter-settings',
+      _version: 1,
+      _exported: new Date().toISOString(),
+      keys: {
+        fox: this.apiKey,
+        owl: this.openaiKey,
+        dolphin: this.claudeKey,
+      },
+      provider: this.provider,
+      models: {
+        gemini: this.selectedModel,
+        openai: this.openaiModel,
+        claude: this.claudeModel,
+      },
+      categories: this.categories.join(', '),
+      logicRules: this.logicRules,
+      mode: this.mode,
+      stackScope: this.stackScope,
+      workspaceScope: this.workspaceScope,
+      removeDuplicates: this.removeDups,
+      includeUncategorized: this.includeUncategorized,
+      reassignExisting: this.reassignExisting,
+      autoClose: this.autoClose,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tab-sorter-settings.json';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const saved = Object.entries(data.keys).filter(([, v]) => v).map(([k]) => k);
+    const label = saved.length ? saved.join(', ') : 'none';
+    this._status(`✓ Settings exported (keys: ${label})`, 'success');
+  }
+
+  async _importSettings(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (data._format !== 'vivaldi-ai-tab-sorter-settings') {
+        this._status('Invalid settings file.', 'error'); return;
+      }
+      // Restore keys
+      if (data.keys) {
+        if (data.keys.fox)     { this.apiKey = data.keys.fox;       $('apiKey').value = data.keys.fox; }
+        if (data.keys.owl)     { this.openaiKey = data.keys.owl;    const el = $('openaiKey'); if (el) el.value = data.keys.owl; }
+        if (data.keys.dolphin) { this.claudeKey = data.keys.dolphin; const el = $('claudeKey'); if (el) el.value = data.keys.dolphin; }
+      }
+      // Restore other settings
+      if (data.provider)  { this.provider = data.provider; const el = $('providerSelect'); if (el) el.value = data.provider; }
+      if (data.models) {
+        if (data.models.gemini) { this.selectedModel = data.models.gemini; $('modelSelect').value = data.models.gemini; }
+        if (data.models.openai) { this.openaiModel = data.models.openai; const el = $('openaiModelSelect'); if (el) el.value = data.models.openai; }
+        if (data.models.claude) { this.claudeModel = data.models.claude; const el = $('claudeModelSelect'); if (el) el.value = data.models.claude; }
+      }
+      if (data.categories) { $('categories').value = data.categories; this.categories = data.categories.split(',').map(c => c.trim()).filter(Boolean); }
+      if (data.logicRules != null) { $('logicRules').value = data.logicRules; this.logicRules = data.logicRules; }
+      if (data.mode) {
+        const r = $('mode' + data.mode.charAt(0).toUpperCase() + data.mode.slice(1));
+        if (r) { r.checked = true; this.mode = data.mode; }
+      }
+      if (data.stackScope) { const el = $(data.stackScope === 'all' ? 'stackAllWindows' : 'stackCurrentWindow'); if (el) el.checked = true; this.stackScope = data.stackScope; }
+      if (data.workspaceScope) { const el = $(data.workspaceScope === 'all' ? 'workspaceScopeAll' : 'workspaceScopeCurrent'); if (el) el.checked = true; this.workspaceScope = data.workspaceScope; }
+      if (data.removeDuplicates != null) { $('removeDuplicates').checked = data.removeDuplicates; this.removeDups = data.removeDuplicates; }
+      if (data.includeUncategorized != null) { const el = $('includeUncategorized'); if (el) el.checked = data.includeUncategorized; this.includeUncategorized = data.includeUncategorized; }
+      if (data.reassignExisting != null) { const el = $('reassignExisting'); if (el) el.checked = data.reassignExisting; this.reassignExisting = data.reassignExisting; }
+      if (data.autoClose != null) { const el = $('autoClose'); if (el) el.checked = data.autoClose; this.autoClose = data.autoClose; }
+
+      await this._save();
+      this._updateProviderFields();
+      this._status('✓ Settings imported!', 'success');
+    } catch (err) {
+      this._status('Failed to import: ' + sanitizeErrorMessage(err.message), 'error');
+    } finally {
+      e.target.value = '';  // allow re-importing same file
+    }
   }
 
   // ── Auto-fetch Models ───────────────────────────────────────────────────
@@ -932,13 +1070,12 @@ echo "Done! Restart Vivaldi to activate the bridge."
       const activeKey = this.provider === 'openai' ? this.openaiKey
         : this.provider === 'claude' ? this.claudeKey
         : this.apiKey;
-      const providerName = this.provider === 'gemini' ? 'Gemini'
-        : this.provider === 'openai' ? 'OpenAI' : 'Claude';
-      if (!activeKey.trim()) { this._status(`Enter your ${providerName} API key.`, 'error'); return; }
+      const cn = KEY_CODENAMES[this.provider];
+      if (!activeKey.trim()) { this._status(`Enter your ${cn.emoji} ${cn.name} key.`, 'error'); return; }
       if (this.provider === 'gemini') {
         const key = activeKey.trim();
         if (!key.startsWith('AI') || key.length < 35) {
-          this._status('Invalid Gemini API key format.', 'error'); return;
+          this._status(`Invalid ${cn.emoji} ${cn.name} key format.`, 'error'); return;
         }
       }
       if (!this.categories.length) { this._status('Enter at least one category.', 'error'); return; }

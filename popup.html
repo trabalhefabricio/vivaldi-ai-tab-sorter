@@ -53,6 +53,14 @@
       color: rgba(255, 255, 255, 0.9);
     }
 
+    .field-label small {
+      font-weight: 400;
+      font-size: 10px;
+      text-transform: none;
+      letter-spacing: 0;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
     .hint {
       font-size: 11px;
       color: rgba(255, 255, 255, 0.65);
@@ -376,6 +384,62 @@
     ::-webkit-scrollbar-thumb:hover {
       background: rgba(255, 255, 255, 0.4);
     }
+
+    .key-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .key-row input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .toggle-vis {
+      padding: 0 8px;
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .toggle-vis:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .key-status {
+      font-size: 11px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      margin-left: 6px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .key-status.visible {
+      opacity: 1;
+    }
+
+    .key-status.saved {
+      color: #48bb78;
+    }
+
+    .settings-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .settings-row .btn-sm {
+      flex: 1;
+      margin-top: 0;
+    }
   </style>
 </head>
 <body>
@@ -386,30 +450,39 @@
     <div class="field">
       <label class="field-label" for="providerSelect">AI Provider</label>
       <select id="providerSelect">
-        <option value="gemini">Google Gemini</option>
-        <option value="openai">OpenAI (GPT)</option>
-        <option value="claude">Anthropic Claude</option>
+        <option value="gemini">🦊 Fox (Google Gemini)</option>
+        <option value="openai">🦉 Owl (OpenAI GPT)</option>
+        <option value="claude">🐬 Dolphin (Anthropic Claude)</option>
       </select>
     </div>
 
-    <!-- Gemini API Key -->
+    <!-- Gemini API Key — codename Fox -->
     <div id="geminiKeySection" class="field">
-      <label class="field-label" for="apiKey">Gemini API Key</label>
-      <input type="password" id="apiKey" placeholder="Paste your Gemini API key">
+      <label class="field-label" for="apiKey">🦊 Fox Key <small>(Gemini)</small> <span id="geminiKeyStatus" class="key-status"></span></label>
+      <div class="key-row">
+        <input type="password" id="apiKey" placeholder="Paste your Gemini API key">
+        <button type="button" class="toggle-vis" data-target="apiKey" title="Show/hide key">👁</button>
+      </div>
       <div class="hint">Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a></div>
     </div>
 
-    <!-- OpenAI API Key -->
+    <!-- OpenAI API Key — codename Owl -->
     <div id="openaiKeySection" class="field" style="display:none;">
-      <label class="field-label" for="openaiKey">OpenAI API Key</label>
-      <input type="password" id="openaiKey" placeholder="Paste your OpenAI API key">
+      <label class="field-label" for="openaiKey">🦉 Owl Key <small>(OpenAI)</small> <span id="openaiKeyStatus" class="key-status"></span></label>
+      <div class="key-row">
+        <input type="password" id="openaiKey" placeholder="Paste your OpenAI API key">
+        <button type="button" class="toggle-vis" data-target="openaiKey" title="Show/hide key">👁</button>
+      </div>
       <div class="hint">Get a key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI Platform</a></div>
     </div>
 
-    <!-- Claude API Key -->
+    <!-- Claude API Key — codename Dolphin -->
     <div id="claudeKeySection" class="field" style="display:none;">
-      <label class="field-label" for="claudeKey">Claude API Key</label>
-      <input type="password" id="claudeKey" placeholder="Paste your Anthropic API key">
+      <label class="field-label" for="claudeKey">🐬 Dolphin Key <small>(Claude)</small> <span id="claudeKeyStatus" class="key-status"></span></label>
+      <div class="key-row">
+        <input type="password" id="claudeKey" placeholder="Paste your Anthropic API key">
+        <button type="button" class="toggle-vis" data-target="claudeKey" title="Show/hide key">👁</button>
+      </div>
       <div class="hint">Get a key at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">Anthropic Console</a></div>
     </div>
 
@@ -579,6 +652,13 @@
         <input type="checkbox" id="autoClose" checked>
         <label for="autoClose">Auto-close popup after applying</label>
       </div>
+    </div>
+
+    <!-- Export / Import -->
+    <div class="settings-row">
+      <button id="exportBtn" class="btn-sm">💾 Export Settings</button>
+      <button id="importBtn" class="btn-sm">📂 Import Settings</button>
+      <input type="file" id="importFile" accept=".json" style="display:none;">
     </div>
 
     <!-- Status -->
