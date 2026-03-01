@@ -1,19 +1,25 @@
-# Implementation Summary – Vivaldi AI Tab Sorter v2.1
+# Implementation Summary – Vivaldi AI Tab Sorter v3.0.0
 
 ## Architecture
 
 ```
 popup.html          UI (HTML + CSS)
-popup.js            TabSorter class – settings, Gemini API, tab operations, bridge setup wizard
+popup.js            TabSorter class – settings, multi‑provider AI, tab chunking, tab operations, bridge setup wizard, browser detection
 background.js       Service worker – workspace organisation (direct API → bridge fallback), bridge status check
-ai_bridge.js        Vivaldi bridge – injected into window.html for workspace access (if needed)
+ai_bridge.js        Vivaldi bridge – injected into window.html for workspace access (Vivaldi only)
 ```
 
 ## Features Implemented
 
-- [x] Gemini AI categorisation (multi‑model, rate‑limited)
+- [x] Multi‑provider AI categorisation (Gemini, OpenAI, Claude)
+- [x] Tab chunking for large tab counts (100+ tabs split into batches of 80)
+- [x] Browser detection (Chrome vs Vivaldi) with mode availability adjustment
 - [x] Three organisation modes (Workspaces, Tab Stacks, Windows)
 - [x] Custom categories & natural‑language logic rules
+- [x] Uncategorized tab toggle (include or skip uncategorized group)
+- [x] Reassign existing toggle (control whether tabs in workspaces get reassigned)
+- [x] Auto‑close popup toggle
+- [x] Workspace scope setting (all windows / current window)
 - [x] Duplicate tab removal
 - [x] Preview before apply
 - [x] Persistent settings (chrome.storage.local)
@@ -26,11 +32,11 @@ ai_bridge.js        Vivaldi bridge – injected into window.html for workspace a
 
 ## Modes
 
-| Mode | API used | Bridge? |
-|------|----------|:-------:|
-| Workspaces | `vivaldi.workspaces` direct or via bridge | Auto‑detected |
-| Tab Stacks | `chrome.tabGroups` (Chromium API) | ❌ |
-| Windows | `chrome.windows.create` | ❌ |
+| Mode | API used | Bridge? | Chrome? |
+|------|----------|:-------:|:-------:|
+| Workspaces | `vivaldi.workspaces` direct or via bridge | Auto‑detected | ❌ Vivaldi only |
+| Tab Stacks | `chrome.tabGroups` (Chromium API) | ❌ | ✅ |
+| Windows | `chrome.windows.create` | ❌ | ✅ |
 
 ### Vivaldi‑specific notes
 
@@ -44,7 +50,8 @@ Chromium extensions cannot write to the browser's own files or inject scripts in
 ## Security
 
 - No `host_permissions` – only `tabs`, `storage`, `tabGroups`.
-- API key stored locally; never logged.
+- API keys stored locally; never logged.
 - Error messages sanitised to redact keys and URLs.
 - HTML tag injection stripped from category input.
 - Install scripts only modify Vivaldi's own `window.html` (with backup).
+- Bridge script includes disclaimer about modifying browser files.

@@ -1,3 +1,6 @@
+// DISCLAIMER: This script modifies Vivaldi's internal window.html.
+// Use at your own risk under the MIT license. Always back up first.
+
 // ai_bridge.js – Vivaldi Workspace Bridge
 //
 // Inject into Vivaldi's window.html to give the extension access to

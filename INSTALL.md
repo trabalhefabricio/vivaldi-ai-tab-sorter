@@ -3,15 +3,22 @@
 ## Part 1 – Install the Extension (5 min)
 
 1. **Download** – click the green **Code** button on GitHub → **Download ZIP** → extract.
-2. **Load in Vivaldi** – go to `vivaldi://extensions` → toggle **Developer mode** ON → **Load unpacked** → select the extracted folder.
-3. **Get API Key** – visit https://aistudio.google.com/app/apikey → sign in → **Create API key** → copy it.
-4. **Configure** – click the extension icon → paste the key → enter categories → done!
+2. **Load in browser** – go to `vivaldi://extensions` (Vivaldi) or `chrome://extensions` (Chrome) → toggle **Developer mode** ON → **Load unpacked** → select the extracted folder.
+3. **Get API Key** – get a key for your preferred AI provider:
+   - **Gemini**: https://aistudio.google.com/app/apikey
+   - **OpenAI**: https://platform.openai.com/api-keys
+   - **Claude**: https://console.anthropic.com/
+4. **Configure** – click the extension icon → select your provider → paste the key → enter categories → done!
 
-> Tab Stacks and Windows modes work right away. Workspace mode auto‑detects Vivaldi's API. If detection fails, continue to Part 2.
+> **Tab Stacks** is the default mode and works everywhere (Chrome and Vivaldi) with no extra setup. Windows mode also works on both browsers. **Workspace mode is Vivaldi‑only** and may require the bridge (see Part 2).
+>
+> **Chrome users**: You're all set! No bridge installation is needed. Skip Part 2.
 
 ---
 
-## Part 2 – Enable Workspace Mode
+## Part 2 – Enable Workspace Mode (Vivaldi only)
+
+> **Note**: This section is only for Vivaldi users who want to use the Workspace mode. Chrome users do not need the bridge at all.
 
 ### Automatic (recommended)
 
@@ -68,6 +75,6 @@ Restart Vivaldi.
 ## Need Help?
 
 - Extension not loading? Ensure Developer mode is ON.
-- API errors? Verify key at https://aistudio.google.com/app/apikey.
+- API errors? Verify key at your provider's dashboard (Gemini: aistudio.google.com, OpenAI: platform.openai.com, Claude: console.anthropic.com).
 - Workspaces not working? Check bridge script path and restart Vivaldi.
 - After Vivaldi updates: repeat Part 2 for the new version folder.

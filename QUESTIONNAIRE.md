@@ -1,7 +1,6 @@
 # Open Questions – Vivaldi AI Tab Sorter
 
-Everything below is an unresolved decision, unknown, or assumption the code currently makes.
-Pick the answers that match what you actually want and I'll implement them.
+> **✅ RESOLVED** – All 20 questions have been answered and implemented in v3.0.0. This file is kept for reference.
 
 ---
 
@@ -9,9 +8,9 @@ Pick the answers that match what you actually want and I'll implement them.
 
 The extension tries `vivaldi.workspaces` directly in the service worker before falling back to the bridge. Nobody has confirmed whether Vivaldi actually exposes that API to extensions.
 
-- [ ] **a)** I've tested it — the direct API **does** work in the service worker (bridge is unnecessary)
-- [ ] **b)** I've tested it — the direct API **does not** work (bridge is still required)
-- [ ] **c)** I haven't tested yet — keep both paths for now
+- [x] **c)** I haven't tested yet — keep both paths for now
+
+> **Implemented**: Both direct API and bridge fallback paths are maintained.
 
 ---
 
@@ -19,9 +18,9 @@ The extension tries `vivaldi.workspaces` directly in the service worker before f
 
 The popup defaults to **Workspaces** on first install. Should it?
 
-- [ ] **a)** Yes, default to Workspaces (power users will install the bridge)
-- [ ] **b)** Default to Tab Stacks instead (works out of the box, no setup friction)
-- [ ] **c)** Default to Windows (simplest, always works)
+- [x] **b)** Default to Tab Stacks instead (works out of the box, no setup friction)
+
+> **Implemented**: Default mode is now `stacks` (Tab Stacks).
 
 ---
 
@@ -29,9 +28,9 @@ The popup defaults to **Workspaces** on first install. Should it?
 
 Currently the AI puts tabs it can't match into an `Uncategorized` bucket. That bucket is silently skipped in Workspace and Tab Stack modes (no group/workspace is created for it).
 
-- [ ] **a)** Keep skipping — uncategorized tabs stay where they are
-- [ ] **b)** Create an "Uncategorized" workspace/group too
-- [ ] **c)** Let the user choose (add a toggle)
+- [x] **c)** Let the user choose (add a toggle)
+
+> **Implemented**: `includeUncategorized` toggle in settings.
 
 ---
 
@@ -39,9 +38,9 @@ Currently the AI puts tabs it can't match into an `Uncategorized` bucket. That b
 
 If a workspace called "Work" already exists, the extension reuses it and moves tabs into it. Should it?
 
-- [ ] **a)** Yes, reuse existing workspaces by name (current behavior)
-- [ ] **b)** Always create fresh workspaces (append a number if needed)
-- [ ] **c)** Ask the user each time
+- [x] **a)** Yes, reuse existing workspaces by name (current behavior)
+
+> **Implemented**: Existing workspaces are reused by name.
 
 ---
 
@@ -49,9 +48,9 @@ If a workspace called "Work" already exists, the extension reuses it and moves t
 
 If a tab is already assigned to a Vivaldi workspace, what should happen when the extension moves it?
 
-- [ ] **a)** Just move it — the new category wins
-- [ ] **b)** Skip tabs that are already in a workspace
-- [ ] **c)** Let the user choose (add a toggle)
+- [x] **c)** Let the user choose (add a toggle)
+
+> **Implemented**: `reassignExisting` toggle in settings.
 
 ---
 
@@ -59,10 +58,9 @@ If a tab is already assigned to a Vivaldi workspace, what should happen when the
 
 The "Download Install Script" button generates a PowerShell / bash script that writes files into Vivaldi's internal resource directory. Some users may not trust running a downloaded script with elevated privileges.
 
-- [ ] **a)** Keep as-is — the script is readable and users can inspect it
-- [ ] **b)** Also show the raw commands in the popup so users can copy/paste manually
-- [ ] **c)** Remove the script download; just show step-by-step instructions in the popup
-- [ ] **d)** All of the above — offer script download **and** copy-pasteable commands **and** a link to manual instructions
+- [x] **a)** Keep as-is — the script is readable and users can inspect it
+
+> **Implemented**: Script download kept; manual instructions available in docs.
 
 ---
 
@@ -70,9 +68,9 @@ The "Download Install Script" button generates a PowerShell / bash script that w
 
 After Vivaldi auto-updates, the bridge gets wiped because the version folder changes. The current answer is "re-run the install script."
 
-- [ ] **a)** That's fine — just document it
-- [ ] **b)** Add a reminder: detect the Vivaldi version on popup open, compare to last known version, and warn the user
-- [ ] **c)** Investigate a Vivaldi mod-style hook (e.g. custom.js) that doesn't get wiped on update
+- [x] **a)** That's fine — just document it
+
+> **Implemented**: Documented in INSTALL.md, DOCUMENTATION.md, and TROUBLESHOOTING.md.
 
 ---
 
@@ -80,9 +78,9 @@ After Vivaldi auto-updates, the bridge gets wiped because the version folder cha
 
 The "Tab Stacks" mode uses `chrome.tabGroups` (Chromium tab groups). Vivaldi has its own stacking with compact/two-level/accordion views. The current docs explain the difference, but:
 
-- [ ] **a)** That's clear enough — keep it as-is
-- [ ] **b)** Rename "Tab Stacks" to something else (e.g. "Tab Groups") to avoid confusion with Vivaldi's native feature
-- [ ] **c)** Try to use Vivaldi's native stacking API (`vivaldi.tabsPrivate`) instead of `chrome.tabGroups`
+- [x] **a)** That's clear enough — keep it as-is
+
+> **Implemented**: Documentation explains the difference between Tab Stacks (chrome.tabGroups) and Vivaldi's native stacking.
 
 ---
 
@@ -90,8 +88,9 @@ The "Tab Stacks" mode uses `chrome.tabGroups` (Chromium tab groups). Vivaldi has
 
 Tab Stacks mode has a "Current Window / All Windows" scope toggle. Workspace mode does not — it always processes all tabs from all windows.
 
-- [ ] **a)** That's fine — workspaces are window-independent
-- [ ] **b)** Add a similar scope toggle for Workspace mode too
+- [x] **b)** Add a similar scope toggle for Workspace mode too
+
+> **Implemented**: `workspaceScope` setting with "all windows" / "current window" options.
 
 ---
 
@@ -99,10 +98,9 @@ Tab Stacks mode has a "Current Window / All Windows" scope toggle. Workspace mod
 
 Duplicate detection matches exact URLs only. Tab titles are ignored. Pinned tabs are also closed if duplicated.
 
-- [ ] **a)** That's fine
-- [ ] **b)** Never close pinned tabs
-- [ ] **c)** Match by domain instead of exact URL (looser dedup)
-- [ ] **d)** Let the user pick between exact URL and domain matching
+- [x] **a)** That's fine
+
+> **Implemented**: Exact URL matching for duplicate removal.
 
 ---
 
@@ -110,9 +108,9 @@ Duplicate detection matches exact URLs only. Tab titles are ignored. Pinned tabs
 
 Currently defaults to `gemini-2.0-flash`. Google may deprecate or rename models over time.
 
-- [ ] **a)** Keep the hardcoded default — user can change it
-- [ ] **b)** Auto-fetch the model list on first install and pick the best available
-- [ ] **c)** Let me specify which model to default to: `_______________`
+- [x] **a)** Keep the hardcoded default — user can change it
+
+> **Implemented**: Default is `gemini-2.0-flash`; user can select from dynamically fetched model list.
 
 ---
 
@@ -120,9 +118,9 @@ Currently defaults to `gemini-2.0-flash`. Google may deprecate or rename models 
 
 The key is validated by format only (`starts with "AI", ≥35 chars`). No actual test request is made.
 
-- [ ] **a)** That's fine — the first Analyze call will catch bad keys
-- [ ] **b)** Add a "Test Key" button that makes a lightweight API call
-- [ ] **c)** Auto-test the key when it's entered
+- [x] **a)** That's fine — the first Analyze call will catch bad keys
+
+> **Implemented**: Format-only validation; actual validation happens on first API call.
 
 ---
 
@@ -130,9 +128,9 @@ The key is validated by format only (`starts with "AI", ≥35 chars`). No actual
 
 The manifest references `icons/icon16.png`, `icon48.png`, and `icon128.png`. Are these real icons or placeholders?
 
-- [ ] **a)** They're real — leave them
-- [ ] **b)** They're placeholders — I'll provide proper icons
-- [ ] **c)** Generate simple icons for me
+- [x] **b)** They're placeholders — I'll provide proper icons
+
+> **Status**: Placeholder icons; to be replaced with proper icons.
 
 ---
 
@@ -140,9 +138,9 @@ The manifest references `icons/icon16.png`, `icon48.png`, and `icon128.png`. Are
 
 Is this extension going to be published somewhere, or is it local-only?
 
-- [ ] **a)** Local / side-loaded only — no store listing needed
-- [ ] **b)** I want to publish on the Chrome Web Store (needs stricter permissions review)
-- [ ] **c)** I want to share it on the Vivaldi community forums / modding hub
+- [x] **a)** Local / side-loaded only — no store listing needed
+
+> **Implemented**: Extension designed for local/side-loaded use.
 
 ---
 
@@ -150,9 +148,9 @@ Is this extension going to be published somewhere, or is it local-only?
 
 There is no test framework. `validate.sh` only checks file existence and JS syntax.
 
-- [ ] **a)** That's enough for now
-- [ ] **b)** Add unit tests for the JSON parsing / prompt building logic (e.g. with Vitest or plain Node)
-- [ ] **c)** Add integration tests that mock the Chrome APIs
+- [x] **b)** Add unit tests for the JSON parsing / prompt building logic (e.g. with Vitest or plain Node)
+
+> **Implemented**: 38 unit tests in `test/parser.test.js` using plain Node.js assertions.
 
 ---
 
@@ -160,9 +158,9 @@ There is no test framework. `validate.sh` only checks file existence and JS synt
 
 After applying, the popup waits 2 seconds then calls `window.close()`. Some users may want to see the result.
 
-- [ ] **a)** Keep the auto-close
-- [ ] **b)** Don't auto-close — let the user close it
-- [ ] **c)** Make it a toggle in settings
+- [x] **c)** Make it a toggle in settings
+
+> **Implemented**: `autoClose` toggle in settings (default: on).
 
 ---
 
@@ -170,9 +168,9 @@ After applying, the popup waits 2 seconds then calls `window.close()`. Some user
 
 For 200+ tabs, the entire tab list is sent to Gemini in a single request. This may hit token limits.
 
-- [ ] **a)** That's fine — Gemini handles it
-- [ ] **b)** Add chunking: split into batches of N tabs and merge results
-- [ ] **c)** Just warn the user if tab count is very high
+- [x] **b)** Add chunking: split into batches of N tabs and merge results
+
+> **Implemented**: Tabs are chunked at 100+ (CHUNK_THRESHOLD), split into batches of 80 (CHUNK_SIZE), and results merged.
 
 ---
 
@@ -180,9 +178,9 @@ For 200+ tabs, the entire tab list is sent to Gemini in a single request. This m
 
 The extension is hard-wired to Google Gemini.
 
-- [ ] **a)** Gemini only — keep it simple
-- [ ] **b)** I'd like to add OpenAI / Claude support too
-- [ ] **c)** Make it provider-agnostic with a pluggable backend
+- [x] **b)** I'd like to add OpenAI / Claude support too
+
+> **Implemented**: Multi-provider support with Gemini, OpenAI, and Claude. Provider dropdown in settings.
 
 ---
 
@@ -190,9 +188,9 @@ The extension is hard-wired to Google Gemini.
 
 Everything is in English.
 
-- [ ] **a)** English only is fine
-- [ ] **b)** I want to support other languages via Chrome's `_locales` system
-- [ ] **c)** Not now, but structure the code so it's easy to add later
+- [x] **a)** English only is fine
+
+> **Implemented**: English only.
 
 ---
 
@@ -200,10 +198,10 @@ Everything is in English.
 
 The repo has an MIT license. The install script writes files into Vivaldi's internal directory.
 
-- [ ] **a)** MIT is fine — the user runs it at their own risk
-- [ ] **b)** Add a disclaimer to the install script about modifying browser files
-- [ ] **c)** Both — MIT license + explicit disclaimer
+- [x] **c)** Both — MIT license + explicit disclaimer
+
+> **Implemented**: MIT license retained. Disclaimer comment added to top of `ai_bridge.js`.
 
 ---
 
-*Pick your answers (letter per question) and I'll implement the changes.*
+*All questions resolved and implemented in v3.0.0.*

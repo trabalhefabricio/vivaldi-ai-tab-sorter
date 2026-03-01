@@ -1,35 +1,46 @@
-# 🚀 Vivaldi AI Tab Sorter – Documentation
+# 🚀 Vivaldi AI Tab Sorter v3.0.0 – Documentation
 
-An intelligent Vivaldi extension that uses Google Gemini AI to organise tabs into Workspaces, Tab Stacks, or separate Windows.
+An intelligent browser extension for **Vivaldi** and **Chrome** that uses AI (Gemini, OpenAI, or Claude) to organise tabs into Workspaces, Tab Stacks, or separate Windows.
 
 ## ✨ Features
 
 | Feature | Details |
 |---------|---------|
-| AI categorisation | Gemini analyses tab titles & URLs |
+| Multi‑provider AI | Gemini, OpenAI (GPT), and Claude analyse tab titles & URLs |
 | Custom categories | Comma‑separated list you define |
 | Logic rules | Natural‑language rules to steer the AI |
 | Three modes | Workspaces · Tab Stacks · Windows |
+| Tab chunking | Automatically splits large tab counts (100+) into batches for reliable AI processing |
+| Uncategorized toggle | Choose whether to create a group for uncategorized tabs |
+| Reassign toggle | Control whether tabs already in a workspace get reassigned |
+| Auto‑close toggle | Choose whether the popup closes after applying |
+| Workspace scope | Process all windows or current window only |
 | Duplicate removal | Optional toggle before sorting |
 | Preview | See the plan before applying |
 | Persistent settings | Saved via `chrome.storage.local` |
 | Usage tracking | Daily request counter with reset |
 | Model selection | Pick any compatible Gemini model |
+| Browser detection | Auto‑detects Chrome vs Vivaldi and adjusts available modes |
 
 ## 📋 Requirements
 
-- **Vivaldi Browser** (latest recommended)
-- **Gemini API key** – [get one free](https://aistudio.google.com/app/apikey)
+- **Vivaldi Browser** or **Google Chrome** (latest recommended)
+- At least one AI API key:
+  - **Gemini** – [get one free](https://aistudio.google.com/app/apikey)
+  - **OpenAI** – [get one](https://platform.openai.com/api-keys)
+  - **Claude** – [get one](https://console.anthropic.com/)
 
 ## 🔧 Installation
 
 ### Step 1 – Load the extension
 
-1. Open `vivaldi://extensions`.
+1. Open `vivaldi://extensions` (Vivaldi) or `chrome://extensions` (Chrome).
 2. Enable **Developer mode** (top‑right toggle).
 3. Click **Load unpacked** → select this folder.
 
-### Step 2 – Enable Workspace mode
+### Step 2 – Enable Workspace mode (Vivaldi only)
+
+> **Chrome users**: Tab Stacks and Windows modes work out of the box. Workspace mode is Vivaldi‑only.
 
 The extension **auto‑detects** whether Vivaldi exposes its workspace API directly. If it does, workspaces work immediately — no bridge needed.
 
@@ -79,18 +90,20 @@ sudo cp /path/to/ai_bridge.js .
 ## 🎯 Usage
 
 1. Click the extension icon.
-2. Paste your Gemini API key.
+2. Select your AI provider (Gemini, OpenAI, or Claude) and paste the corresponding API key.
 3. Enter categories (e.g. `Work, Shopping, Research, Social`).
-4. Optionally add logic rules and toggle duplicate removal.
+4. Optionally add logic rules, configure toggles (uncategorized, reassign, auto‑close), and toggle duplicate removal.
 5. Choose a mode → **Analyze** → review preview → **Apply**.
+
+> For large tab counts (100+), the extension automatically chunks tabs into batches and merges the AI results.
 
 ## 🎨 Modes
 
-| Mode | Description | Bridge needed? |
-|------|-------------|:--------------:|
-| Workspaces | Creates/reuses native Vivaldi Workspaces | Auto‑detected; bridge if needed |
-| Tab Stacks | Tab groups via `chrome.tabGroups` API | ❌ |
-| Windows | One new window per category | ❌ |
+| Mode | Description | Bridge needed? | Chrome? |
+|------|-------------|:--------------:|:-------:|
+| Workspaces | Creates/reuses native Vivaldi Workspaces | Auto‑detected; bridge if needed | ❌ Vivaldi only |
+| Tab Stacks | Tab groups via `chrome.tabGroups` API | ❌ | ✅ |
+| Windows | One new window per category | ❌ | ✅ |
 
 ### A note on Vivaldi Tab Stacks vs chrome.tabGroups
 
@@ -107,8 +120,8 @@ If you want to organise tabs into **Vivaldi's native Workspaces** (the workspace
 
 ## 🔒 Privacy & Security
 
-- API key stored locally only.
-- Tab data is sent to Google Gemini for categorisation.
+- API keys stored locally only.
+- Tab data is sent to your chosen AI provider (Gemini, OpenAI, or Claude) for categorisation.
 - No external data storage by this extension.
 - Minimal permissions requested.
 
@@ -117,7 +130,7 @@ If you want to organise tabs into **Vivaldi's native Workspaces** (the workspace
 | Problem | Solution |
 |---------|----------|
 | Bridge not responding | Verify `ai_bridge.js` path and restart Vivaldi |
-| API error | Check key validity & quota at [AI Studio](https://aistudio.google.com/) |
+| API error | Check key validity & quota at your provider's dashboard |
 | Tabs not moving | Unpin tabs; avoid incognito tabs |
 | Extension icon blank | Replace placeholder PNGs in `icons/` |
 
