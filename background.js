@@ -4,7 +4,7 @@
 
 chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
   if (req.action === 'organizeToWorkspaces') {
-    organizeWorkspaces(req.categorizedTabs)
+    organizeWorkspaces(req.categorizedTabs, req.scope, req.includeUncategorized, req.reassignExisting)
       .then(r => sendResponse(r))
       .catch(e => sendResponse({ success: false, error: e.message }));
     return true;
@@ -57,11 +57,11 @@ async function checkWorkspaceSupport() {
 
 // ── Workspace Organisation ───────────────────────────────────────────────────
 
-async function organizeWorkspaces(categorized) {
+async function organizeWorkspaces(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true) {
   // Approach 1: Direct Vivaldi API (no bridge needed)
   if (typeof vivaldi !== 'undefined' && vivaldi.workspaces) {
     try {
-      return await organizeViaDirect(categorized);
+      return await organizeViaDirect(categorized, scope, includeUncategorized, reassignExisting);
     } catch (e) {
       console.log('Direct Vivaldi API failed:', e.message);
     }
@@ -69,7 +69,7 @@ async function organizeWorkspaces(categorized) {
 
   // Approach 2: Bridge communication
   try {
-    return await organizeViaBridge(categorized);
+    return await organizeViaBridge(categorized, scope, includeUncategorized, reassignExisting);
   } catch (e) {
     console.log('Bridge failed:', e.message);
   }
@@ -80,7 +80,7 @@ async function organizeWorkspaces(categorized) {
 }
 
 // Direct Vivaldi API (works if vivaldi.workspaces is exposed to extensions)
-async function organizeViaDirect(categorized) {
+async function organizeViaDirect(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true) {
   const getAll = () => new Promise((resolve, reject) => {
     vivaldi.workspaces.getAll(ws => {
       if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
@@ -107,14 +107,32 @@ async function organizeViaDirect(categorized) {
   const existing = await getAll();
   const nameToId = new Map(existing.map(w => [w.title, w.id]));
 
+  let targetWindowId = null;
+  if (scope === 'current') {
+    const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+    targetWindowId = win.id;
+  }
+
   for (const [category, tabs] of Object.entries(categorized)) {
-    if (!tabs.length || category === 'Uncategorized') continue;
+    if (!tabs.length) continue;
+    if (!includeUncategorized && category === 'Uncategorized') continue;
     let wsId = nameToId.get(category);
     if (!wsId) {
       wsId = await create(category);
       nameToId.set(category, wsId);
     }
     for (const t of tabs) {
+      if (scope === 'current' && targetWindowId !== null && t.windowId !== targetWindowId) continue;
+      if (!reassignExisting) {
+        const tab = await chrome.tabs.get(t.id);
+        if (tab.vivExtData) {
+          try {
+            const ext = JSON.parse(tab.vivExtData);
+            // Vivaldi stores the workspace id in ext.group
+            if (ext.group !== undefined && ext.group !== null) continue;
+          } catch { /* not assigned */ }
+        }
+      }
       await moveTab(t.id, wsId);
     }
   }
@@ -122,9 +140,16 @@ async function organizeViaDirect(categorized) {
 }
 
 // Bridge communication via storage
-async function organizeViaBridge(categorized) {
+async function organizeViaBridge(categorized, scope = 'all', includeUncategorized = false, reassignExisting = true) {
   await chrome.storage.local.set({
-    workspaceCommand: { action: 'organize', categorizedTabs: categorized, timestamp: Date.now() },
+    workspaceCommand: {
+      action: 'organize',
+      categorizedTabs: categorized,
+      includeUncategorized,
+      reassignExisting,
+      scope,
+      timestamp: Date.now(),
+    },
   });
 
   await new Promise(r => setTimeout(r, 2000));
@@ -143,6 +168,11 @@ async function organizeViaBridge(categorized) {
 // ── Bridge Script Content (embedded for setup helper) ────────────────────────
 
 const BRIDGE_SCRIPT_CONTENT = `// ai_bridge.js – Vivaldi Workspace Bridge (embedded)
+// DISCLAIMER: This script modifies Vivaldi's internal window.html.
+// It is provided under the MIT license. Use at your own risk.
+// The authors are not responsible for any issues caused by
+// modifying browser internal files. Always back up window.html first.
+// See the LICENSE file for full license terms.
 (function () {
   'use strict';
   if (typeof vivaldi === 'undefined' || !vivaldi.workspaces) {
@@ -158,7 +188,7 @@ const BRIDGE_SCRIPT_CONTENT = `// ai_bridge.js – Vivaldi Workspace Bridge (emb
       if (cmd.action === 'test') {
         await respond({ success: true, message: 'Bridge OK' });
       } else if (cmd.action === 'organize') {
-        await organise(cmd.categorizedTabs);
+        await organise(cmd.categorizedTabs, cmd.includeUncategorized, cmd.reassignExisting);
         await respond({ success: true });
       }
     } catch (err) {
@@ -199,11 +229,12 @@ const BRIDGE_SCRIPT_CONTENT = `// ai_bridge.js – Vivaldi Workspace Bridge (emb
     });
   }
 
-  async function organise(categorized) {
+  async function organise(categorized, includeUncategorized = false, reassignExisting = true) {
     const existing = await getWorkspaces();
     const nameToId = new Map(existing.map(w => [w.title, w.id]));
     for (const [category, tabs] of Object.entries(categorized)) {
-      if (!tabs.length || category === 'Uncategorized') continue;
+      if (!tabs.length) continue;
+      if (!includeUncategorized && category === 'Uncategorized') continue;
       let wsId = nameToId.get(category);
       if (!wsId) {
         wsId = await createWorkspace(category);
