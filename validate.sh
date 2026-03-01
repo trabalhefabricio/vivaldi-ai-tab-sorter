@@ -69,6 +69,19 @@ echo "  JS  lines : $(cat *.js 2>/dev/null | wc -l | tr -d ' ')"
 echo "  HTML lines: $(cat *.html 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Docs lines: $(cat *.md 2>/dev/null | wc -l | tr -d ' ')"
 
+# ── Unit tests ────────────────────────────────────────────────────────────────
+
+echo "🧪  Unit tests"
+if command -v node >/dev/null 2>&1 && [ -f test/parser.test.js ]; then
+  if node test/parser.test.js > /dev/null 2>&1; then
+    echo "  ✓ parser tests"
+  else
+    echo "  ✗ parser tests failed"; ERRORS=$((ERRORS + 1))
+  fi
+else
+  echo "  ⚠  Skipped (Node.js or test file not found)"
+fi
+
 echo
 if [ $ERRORS -eq 0 ]; then
   echo "✅  All checks passed."
