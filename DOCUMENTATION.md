@@ -20,7 +20,6 @@ An intelligent Vivaldi extension that uses Google Gemini AI to organise tabs int
 
 - **Vivaldi Browser** (latest recommended)
 - **Gemini API key** – [get one free](https://aistudio.google.com/app/apikey)
-- For Workspace mode: bridge script installation (see below)
 
 ## 🔧 Installation
 
@@ -30,9 +29,21 @@ An intelligent Vivaldi extension that uses Google Gemini AI to organise tabs int
 2. Enable **Developer mode** (top‑right toggle).
 3. Click **Load unpacked** → select this folder.
 
-### Step 2 – Install the bridge script (Workspace mode only)
+### Step 2 – Enable Workspace mode
 
-The bridge gives the extension access to Vivaldi's native `vivaldi.workspaces` API. Tab Stacks and Windows modes work without it.
+The extension **auto‑detects** whether Vivaldi exposes its workspace API directly. If it does, workspaces work immediately — no bridge needed.
+
+If auto‑detection reports "Bridge not detected", use the **one‑click installer**:
+
+1. Select **🏆 Workspaces** mode in the popup.
+2. Click **⬇️ Download Install Script**.
+3. Run the downloaded script (PowerShell on Windows, bash on macOS/Linux).
+4. Restart Vivaldi.
+5. Click **🔍 Check Connection** — it should show ✅.
+
+#### Manual bridge installation (alternative)
+
+If you prefer to install manually:
 
 #### Windows
 
@@ -77,7 +88,7 @@ sudo cp /path/to/ai_bridge.js .
 
 | Mode | Description | Bridge needed? |
 |------|-------------|:--------------:|
-| Workspaces | Creates/reuses native Vivaldi Workspaces | ✅ |
+| Workspaces | Creates/reuses native Vivaldi Workspaces | Auto‑detected; bridge if needed |
 | Tab Stacks | Tab groups via `chrome.tabGroups` API | ❌ |
 | Windows | One new window per category | ❌ |
 
@@ -114,7 +125,7 @@ More detail in [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## 🔄 After Vivaldi Updates
 
-Re‑add the `<script>` tag and copy `ai_bridge.js` to the new version folder.
+Re‑run the install script or re‑add the `<script>` tag and copy `ai_bridge.js` to the new version folder. Click **🔍 Check Connection** in the popup to verify.
 
 ## 📄 License
 

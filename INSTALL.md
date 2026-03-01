@@ -7,17 +7,28 @@
 3. **Get API Key** – visit https://aistudio.google.com/app/apikey → sign in → **Create API key** → copy it.
 4. **Configure** – click the extension icon → paste the key → enter categories → done!
 
-> Tab Stacks and Windows modes work right away. For native Vivaldi Workspace mode continue to Part 2.
+> Tab Stacks and Windows modes work right away. Workspace mode auto‑detects Vivaldi's API. If detection fails, continue to Part 2.
 
 ---
 
-## Part 2 – Enable Workspace Mode (optional, 10 min)
+## Part 2 – Enable Workspace Mode
 
-The bridge script gives the extension access to Vivaldi's native `vivaldi.workspaces` API.
+### Automatic (recommended)
+
+1. Select **🏆 Workspaces** in the extension popup.
+2. If it shows "⚠️ Bridge not detected", click **⬇️ Download Install Script**.
+3. **Close Vivaldi completely.**
+4. Run the downloaded script:
+   - **Windows**: Right‑click `install_bridge.ps1` → **Run with PowerShell**
+   - **macOS / Linux**: `chmod +x install_bridge.sh && ./install_bridge.sh` (Linux may need `sudo`)
+5. Restart Vivaldi.
+6. Click **🔍 Check Connection** in the popup — you should see ✅.
+
+### Manual (alternative)
 
 ⚠️ Back up `window.html` before editing.
 
-### Windows
+#### Windows
 
 1. Close Vivaldi completely.
 2. Open `%LOCALAPPDATA%\Vivaldi\Application\<version>\resources\vivaldi`.
@@ -29,13 +40,13 @@ The bridge script gives the extension access to Vivaldi's native `vivaldi.worksp
 5. Copy `ai_bridge.js` from the extension folder into the same directory.
 6. Restart Vivaldi.
 
-### macOS
+#### macOS
 
 1. Close Vivaldi.
 2. Open `/Applications/Vivaldi.app/Contents/Versions/<version>/Vivaldi Framework.framework/Resources/vivaldi`.
 3. Same steps 3–6 as Windows.
 
-### Linux
+#### Linux
 
 ```bash
 cd /opt/vivaldi/resources/vivaldi   # or /snap/vivaldi/…

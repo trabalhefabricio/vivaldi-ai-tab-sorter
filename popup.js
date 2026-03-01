@@ -168,6 +168,7 @@ class TabSorter {
       r.addEventListener('change', e => {
         this.mode = e.target.value;
         $('stackOptionsSection').style.display = this.mode === 'stacks' ? '' : 'none';
+        this._updateWorkspaceSetup();
         this._save();
       });
     });
@@ -181,6 +182,10 @@ class TabSorter {
     $('applyBtn').addEventListener('click', () => this._apply());
     $('resetCounter').addEventListener('click', () => this._resetCount());
     $('refreshModelsBtn').addEventListener('click', () => this._fetchModels());
+    $('checkBridgeBtn').addEventListener('click', () => this._checkBridge());
+    $('downloadSetupBtn').addEventListener('click', () => this._downloadSetup());
+
+    this._updateWorkspaceSetup();
   }
 
   // ── UI Helpers ───────────────────────────────────────────────────────────
@@ -225,6 +230,213 @@ class TabSorter {
     el.appendChild(footer);
 
     el.classList.add('visible');
+  }
+
+  // ── Workspace Setup ──────────────────────────────────────────────────────
+
+  _updateWorkspaceSetup() {
+    const section = $('workspaceSetupSection');
+    section.style.display = this.mode === 'workspaces' ? '' : 'none';
+    if (this.mode === 'workspaces') this._checkBridge();
+  }
+
+  async _checkBridge() {
+    const indicator = $('bridgeStatus');
+    const setupArea = $('bridgeSetupArea');
+    indicator.textContent = '⏳ Checking workspace support…';
+    indicator.className = 'bridge-indicator info';
+    $('checkBridgeBtn').disabled = true;
+
+    try {
+      const result = await chrome.runtime.sendMessage({ action: 'checkWorkspaceSupport' });
+      if (result?.available) {
+        const label = result.method === 'direct' ? 'Direct API' : 'Bridge';
+        indicator.textContent = `✅ ${label} connected – workspaces ready`;
+        indicator.className = 'bridge-indicator success';
+        setupArea.style.display = 'none';
+      } else {
+        indicator.textContent = '⚠️ Bridge not detected – install to enable workspaces';
+        indicator.className = 'bridge-indicator warn';
+        setupArea.style.display = '';
+      }
+    } catch {
+      indicator.textContent = '⚠️ Could not check – install bridge for workspaces';
+      indicator.className = 'bridge-indicator warn';
+      setupArea.style.display = '';
+    } finally {
+      $('checkBridgeBtn').disabled = false;
+    }
+  }
+
+  async _downloadSetup() {
+    const ua = navigator.userAgent;
+    const vivaldiVersionMatch = ua.match(/Vivaldi\/([\d.]+)/);
+    const vivaldiVer = vivaldiVersionMatch ? vivaldiVersionMatch[1] : '<VERSION>';
+
+    // Get bridge script content from background
+    let bridgeCode;
+    try {
+      const resp = await chrome.runtime.sendMessage({ action: 'getBridgeScript' });
+      bridgeCode = resp?.script || '';
+    } catch {
+      bridgeCode = '';
+    }
+    if (!bridgeCode) {
+      this._status('Could not load bridge script.', 'error');
+      return;
+    }
+
+    const isWin = /Win/.test(ua);
+    const isMac = /Mac/.test(ua);
+
+    let filename, content;
+
+    if (isWin) {
+      filename = 'install_bridge.ps1';
+      content = this._genPowerShell(vivaldiVer, bridgeCode);
+    } else if (isMac) {
+      filename = 'install_bridge.sh';
+      content = this._genBashMac(vivaldiVer, bridgeCode);
+    } else {
+      filename = 'install_bridge.sh';
+      content = this._genBashLinux(bridgeCode);
+    }
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const runCmd = isWin
+      ? `Right-click ${filename} → "Run with PowerShell"`
+      : `chmod +x ${filename} && ./${filename}`;
+    this._status(`Downloaded ${filename}. Run it: ${runCmd}`, 'info');
+  }
+
+  _genPowerShell(ver, bridgeCode) {
+    const escapedBridgeCode = bridgeCode.replace(/'/g, "''");
+    return `# install_bridge.ps1 – Vivaldi AI Tab Sorter bridge installer
+# Run: Right-click -> "Run with PowerShell"  (or:  powershell -ExecutionPolicy Bypass -File install_bridge.ps1)
+
+$ErrorActionPreference = "Stop"
+
+# Find Vivaldi resources directory
+$base = "$env:LOCALAPPDATA\\Vivaldi\\Application"
+if (-Not (Test-Path $base)) { Write-Error "Vivaldi not found at $base"; exit 1 }
+
+$verDirs = Get-ChildItem $base -Directory | Where-Object { $_.Name -match '^[\\d.]+$' } | Sort-Object { [version]$_.Name } -Descending
+if (-Not $verDirs) { Write-Error "No Vivaldi version folders found."; exit 1 }
+$target = Join-Path $verDirs[0].FullName "resources\\vivaldi"
+if (-Not (Test-Path "$target\\window.html")) { Write-Error "window.html not found in $target"; exit 1 }
+
+Write-Host "Found Vivaldi at: $target" -ForegroundColor Cyan
+
+# Backup
+$backup = "$target\\window.html.backup"
+if (-Not (Test-Path $backup)) {
+  Copy-Item "$target\\window.html" $backup
+  Write-Host "Backed up window.html" -ForegroundColor Green
+}
+
+# Write bridge script
+$bridge = @'
+${escapedBridgeCode}
+'@
+Set-Content -Path "$target\\ai_bridge.js" -Value $bridge -Encoding UTF8
+Write-Host "Wrote ai_bridge.js" -ForegroundColor Green
+
+# Patch window.html
+$html = Get-Content "$target\\window.html" -Raw
+if ($html -match 'ai_bridge\\.js') {
+  Write-Host "Script tag already present – skipping." -ForegroundColor Yellow
+} else {
+  $html = $html -replace '</body>', '  <script src="ai_bridge.js"></script>\\n</body>'
+  Set-Content -Path "$target\\window.html" -Value $html -Encoding UTF8
+  Write-Host "Patched window.html" -ForegroundColor Green
+}
+
+Write-Host "\\nDone! Restart Vivaldi to activate the bridge." -ForegroundColor Cyan
+`;
+  }
+
+  _genBashMac(ver, bridgeCode) {
+    const escapedBridgeCode = bridgeCode.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+    return `#!/usr/bin/env bash
+# install_bridge.sh – Vivaldi AI Tab Sorter bridge installer (macOS)
+# Run:  chmod +x install_bridge.sh && ./install_bridge.sh
+
+set -euo pipefail
+
+BASE="/Applications/Vivaldi.app/Contents/Versions"
+if [ ! -d "$BASE" ]; then echo "Vivaldi not found at $BASE"; exit 1; fi
+
+VER=$(ls -1 "$BASE" | sort -V | tail -n1)
+TARGET="$BASE/$VER/Vivaldi Framework.framework/Resources/vivaldi"
+if [ ! -f "$TARGET/window.html" ]; then echo "window.html not found in $TARGET"; exit 1; fi
+
+echo "Found Vivaldi at: $TARGET"
+
+# Backup
+[ ! -f "$TARGET/window.html.backup" ] && cp "$TARGET/window.html" "$TARGET/window.html.backup" && echo "Backed up window.html"
+
+# Write bridge script
+cat > "$TARGET/ai_bridge.js" << 'BRIDGEOF'
+${escapedBridgeCode}
+BRIDGEOF
+echo "Wrote ai_bridge.js"
+
+# Patch window.html
+if grep -q 'ai_bridge\\.js' "$TARGET/window.html"; then
+  echo "Script tag already present – skipping."
+else
+  sed -i '' 's|</body>|  <script src="ai_bridge.js"></script>\\n</body>|' "$TARGET/window.html"
+  echo "Patched window.html"
+fi
+
+echo ""
+echo "Done! Restart Vivaldi to activate the bridge."
+`;
+  }
+
+  _genBashLinux(bridgeCode) {
+    const escapedBridgeCode = bridgeCode.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+    return `#!/usr/bin/env bash
+# install_bridge.sh – Vivaldi AI Tab Sorter bridge installer (Linux)
+# Run:  chmod +x install_bridge.sh && sudo ./install_bridge.sh
+
+set -euo pipefail
+
+# Try common Vivaldi paths
+for BASE in /opt/vivaldi/resources/vivaldi /usr/lib/vivaldi/resources/vivaldi /snap/vivaldi/current/opt/vivaldi/resources/vivaldi; do
+  [ -f "$BASE/window.html" ] && TARGET="$BASE" && break
+done
+if [ -z "\${TARGET:-}" ]; then echo "Vivaldi resources not found. Check your install path."; exit 1; fi
+
+echo "Found Vivaldi at: $TARGET"
+
+# Backup
+[ ! -f "$TARGET/window.html.backup" ] && cp "$TARGET/window.html" "$TARGET/window.html.backup" && echo "Backed up window.html"
+
+# Write bridge script
+cat > "$TARGET/ai_bridge.js" << 'BRIDGEOF'
+${escapedBridgeCode}
+BRIDGEOF
+echo "Wrote ai_bridge.js"
+
+# Patch window.html
+if grep -q 'ai_bridge\\.js' "$TARGET/window.html"; then
+  echo "Script tag already present – skipping."
+else
+  sed -i 's|</body>|  <script src="ai_bridge.js"></script>\\n</body>|' "$TARGET/window.html"
+  echo "Patched window.html"
+fi
+
+echo ""
+echo "Done! Restart Vivaldi to activate the bridge."
+`;
   }
 
   // ── Model Fetching ───────────────────────────────────────────────────────

@@ -264,6 +264,26 @@
       font-family: inherit;
     }
 
+    .bridge-indicator {
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .bridge-indicator.success {
+      background: rgba(72, 187, 120, 0.2);
+    }
+
+    .bridge-indicator.warn {
+      background: rgba(237, 137, 54, 0.2);
+    }
+
+    .bridge-indicator.info {
+      background: rgba(66, 153, 225, 0.2);
+    }
+
     #preview {
       margin-top: 10px;
       background: rgba(255, 255, 255, 0.08);
@@ -446,6 +466,20 @@
             <div class="mode-desc">Consolidate all tabs into one window</div>
           </div>
         </label>
+      </div>
+    </div>
+
+    <!-- Workspace Setup (shown only in workspace mode) -->
+    <div class="field" id="workspaceSetupSection" style="display:none;">
+      <label class="field-label">Workspace Status</label>
+      <div id="bridgeStatus" class="bridge-indicator info">Checking…</div>
+      <button id="checkBridgeBtn" class="btn-sm">🔍 Check Connection</button>
+      <div id="bridgeSetupArea" style="display:none;">
+        <button id="downloadSetupBtn" class="btn-sm">⬇️ Download Install Script</button>
+        <div class="hint" style="margin-top:6px;">
+          Downloads a script that auto-installs the bridge into Vivaldi.
+          Run it, restart Vivaldi, and workspaces are ready.
+        </div>
       </div>
     </div>
 

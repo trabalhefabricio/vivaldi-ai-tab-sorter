@@ -15,7 +15,7 @@
 ## ✨ Features
 
 - 🤖 **AI‑Powered** – Google Gemini categorises tabs by title & URL
-- 🏆 **Vivaldi Workspaces** – create / reuse Workspaces per category (bridge required)
+- 🏆 **Vivaldi Workspaces** – create / reuse Workspaces per category (auto-detected or one‑click bridge setup)
 - 📚 **Tab Stacks** – coloured, named tab groups in your current window
 - 🪟 **Separate Windows** – one window per category
 - 🎯 **Custom Rules** – steer the AI with your own logic
@@ -32,7 +32,7 @@
 3. Click the extension icon → paste API key → enter categories.
 4. **Analyze** → review → **Apply**.
 
-> Tab Stacks and Windows modes work out of the box. For native Vivaldi Workspace mode, install the bridge script – see [INSTALL.md](INSTALL.md).
+> Tab Stacks and Windows modes work out of the box. Workspace mode auto‑detects Vivaldi's API; if needed, click **⬇️ Download Install Script** in the popup to set up the bridge automatically – see [INSTALL.md](INSTALL.md).
 
 ## 🔒 Privacy
 

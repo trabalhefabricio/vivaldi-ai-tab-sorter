@@ -20,13 +20,18 @@
 
 | Problem | Fix |
 |---------|-----|
-| Bridge not responding | Verify `ai_bridge.js` in Vivaldi's `resources/vivaldi` folder, script tag in `window.html`, and restart Vivaldi |
+| "⚠️ Bridge not detected" | Click **⬇️ Download Install Script**, run it with Vivaldi closed, then restart Vivaldi |
+| Bridge not responding after install | Verify `ai_bridge.js` in Vivaldi's `resources/vivaldi` folder, script tag in `window.html`, and restart Vivaldi |
 | Tabs not moving | Unpin tabs; avoid incognito tabs; check console for errors |
+| Script blocked by OS | **Windows**: run `Set-ExecutionPolicy Bypass -Scope Process` in PowerShell first. **Linux**: run with `sudo` |
 
 **Verify bridge is loaded:**
 ```
 Open DevTools (F12) → Console → look for "[AI Tab Sorter] Bridge loaded."
 ```
+
+**Or use the popup:**
+Select Workspaces mode → click **🔍 Check Connection**.
 
 ## Tab Sorting
 
@@ -57,7 +62,7 @@ Open DevTools (F12) → Console → look for "[AI Tab Sorter] Bridge loaded."
 
 ## After Vivaldi Updates
 
-Re‑add the `<script src="ai_bridge.js"></script>` tag and copy `ai_bridge.js` to the new version's `resources/vivaldi` folder.
+Re‑run the install script (click **⬇️ Download Install Script** again) or manually re‑add the `<script src="ai_bridge.js"></script>` tag and copy `ai_bridge.js` to the new version's `resources/vivaldi` folder.
 
 ## Reset Extension
 
