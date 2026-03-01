@@ -22,7 +22,8 @@ function buildPrompt(categories, logicRules, tabsInfo) {
   return [
     `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
     '\nUse the EXACT category names listed above. Every tab MUST be assigned to one of these categories; do not skip any tab.',
-    '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
+    '\nUse BOTH the tab title AND the URL domain to determine the best category. The domain name is often the strongest signal (e.g. fiverr.com → work/gigs, github.com → development, youtube.com → media).',
+    '\nAlways pick the closest matching category. Never leave a tab uncategorized if any category is even a partial match.',
     rules,
     '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
     '\nReturn ONLY a JSON array with one entry per tab: [{"id":<tab_id>,"category":"<Category>"},…]',
@@ -397,8 +398,9 @@ console.log('\n📋 buildPrompt');
   assert(prompt.includes('Dev, Email'), 'includes categories');
   assert(prompt.includes('"id": 1'), 'includes tab data');
   assert(!prompt.includes('Custom rules'), 'no custom rules when empty');
-  assert(prompt.includes('Prioritize the tab title'), 'instructs title-first priority');
-  assert(prompt.includes('URL only as a secondary signal'), 'URL is secondary signal');
+  assert(prompt.includes('BOTH the tab title AND the URL domain'), 'instructs to use title and URL');
+  assert(prompt.includes('domain name is often the strongest signal'), 'URL domain is key signal');
+  assert(prompt.includes('closest matching category'), 'instructs closest match');
   assert(prompt.includes('EXACT category names'), 'instructs exact category names');
   assert(prompt.includes('do not skip any tab'), 'instructs not to skip tabs');
 }
@@ -540,6 +542,49 @@ console.log('\n  ─ dedup skips tabs with empty URLs');
   const { unique, dupeIds } = dedup(tabs);
   assertEqual(unique.length, 2, 'real duplicate still detected');
   assertEqual(dupeIds, [2], 'duplicate tab ID identified');
+}
+
+// ── Tests: Title From URL (hibernated tab fallback) ─────────────────────────
+
+console.log('\n📋 Title From URL (hibernated tab fallback)');
+
+function titleFromUrl(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    let name = u.hostname.replace(/^www\./, '');
+    if (u.pathname && u.pathname !== '/') {
+      const path = decodeURIComponent(u.pathname)
+        .replace(/\/$/, '')
+        .replace(/[/_-]+/g, ' ')
+        .trim();
+      if (path) name += ' – ' + path;
+    }
+    return name || url;
+  } catch {
+    return url;
+  }
+}
+
+console.log('\n  ─ derives readable names from URLs');
+
+{
+  assertEqual(titleFromUrl('https://github.com'), 'github.com', 'root domain');
+  assertEqual(titleFromUrl('https://www.github.com'), 'github.com', 'strips www.');
+  assertEqual(titleFromUrl('https://github.com/user/repo'), 'github.com – user repo', 'path segments');
+  assertEqual(titleFromUrl('https://docs.google.com/document/d/abc'), 'docs.google.com – document d abc', 'deep path');
+  assertEqual(titleFromUrl('https://en.wikipedia.org/wiki/JavaScript'), 'en.wikipedia.org – wiki JavaScript', 'Wikipedia path');
+  assertEqual(titleFromUrl('http://localhost:3000'), 'localhost', 'localhost');
+}
+
+console.log('\n  ─ edge cases');
+
+{
+  assertEqual(titleFromUrl(''), '', 'empty URL returns empty');
+  assertEqual(titleFromUrl('about:blank'), ' – blank', 'about:blank derives from pathname');
+  assertEqual(titleFromUrl('chrome://extensions/'), 'extensions', 'chrome:// uses hostname');
+  assertEqual(titleFromUrl('https://www.fiverr.com/categories/programming-tech'),
+    'fiverr.com – categories programming tech', 'Fiverr path is readable');
 }
 
 // ── Results ─────────────────────────────────────────────────────────────────

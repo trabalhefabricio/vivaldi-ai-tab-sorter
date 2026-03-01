@@ -57,7 +57,7 @@ class TabSorter {
     this.includeUncategorized = false;
     this.reassignExisting     = true;
     this.workspaceScope       = 'all';
-    this.autoClose            = true;
+    this.autoClose            = false;
     this.provider             = 'gemini';
     this.openaiKey            = '';
     this.claudeKey            = '';
@@ -269,6 +269,7 @@ class TabSorter {
 
     $('analyzeBtn').addEventListener('click', () => this._analyze());
     $('applyBtn').addEventListener('click', () => this._apply());
+    $('resetBtn').addEventListener('click', () => this._resetAnalysis());
     $('resetCounter').addEventListener('click', () => this._resetCount());
     $('refreshModelsBtn').addEventListener('click', () => this._fetchModels());
     $('checkBridgeBtn').addEventListener('click', () => this._checkBridge());
@@ -981,11 +982,35 @@ fi
     const tabs = await chrome.tabs.query({});
     return tabs.map(t => ({
       id: t.id,
-      title: t.title || '',
+      title: t.title || this._titleFromUrl(t.url || t.pendingUrl || ''),
       url: t.url || t.pendingUrl || '',
       windowId: t.windowId,
       index: t.index,
     }));
+  }
+
+  /**
+   * Derive a human-readable title from a URL when the browser reports an
+   * empty title (common with hibernated / discarded tabs in Vivaldi).
+   */
+  _titleFromUrl(url) {
+    if (!url) return '';
+    try {
+      const u = new URL(url);
+      // Use the hostname, stripping "www."
+      let name = u.hostname.replace(/^www\./, '');
+      // Append a readable path when it carries meaning
+      if (u.pathname && u.pathname !== '/') {
+        const path = decodeURIComponent(u.pathname)
+          .replace(/\/$/, '')
+          .replace(/[/_-]+/g, ' ')
+          .trim();
+        if (path) name += ' – ' + path;
+      }
+      return name || url;
+    } catch {
+      return url;
+    }
   }
 
   _dedup(tabs) {
@@ -1011,7 +1036,8 @@ fi
     return [
       `Categorize each browser tab into exactly ONE of these categories: ${cats}.`,
       '\nUse the EXACT category names listed above. Every tab MUST be assigned to one of these categories; do not skip any tab.',
-      '\nPrioritize the tab title for categorization; use the URL only as a secondary signal.',
+      '\nUse BOTH the tab title AND the URL domain to determine the best category. The domain name is often the strongest signal (e.g. fiverr.com → work/gigs, github.com → development, youtube.com → media).',
+      '\nAlways pick the closest matching category. Never leave a tab uncategorized if any category is even a partial match.',
       rules,
       '\nTabs:\n' + JSON.stringify(tabsInfo, null, 2),
       '\nReturn ONLY a JSON array with one entry per tab: [{"id":<tab_id>,"category":"<Category>"},…]',
@@ -1335,6 +1361,7 @@ fi
       this.analyzedTabs = await this._callAIChunked(tabs);
       this._showPreview(this.analyzedTabs);
       $('applyBtn').disabled = false;
+      $('resetBtn').disabled = false;
       this._refreshUsage();
       this._status('Analysis complete – review & apply.', 'success');
     } catch (e) {
@@ -1343,6 +1370,18 @@ fi
     } finally {
       $('analyzeBtn').disabled = false;
     }
+  }
+
+  // ── Reset Analysis ───────────────────────────────────────────────────────
+
+  _resetAnalysis() {
+    this.analyzedTabs = null;
+    this.allTabs = [];
+    $('preview').replaceChildren();
+    $('preview').classList.remove('visible');
+    $('applyBtn').disabled = true;
+    $('resetBtn').disabled = true;
+    this._status('Reset – ready for a new analysis.', 'info');
   }
 
   // ── Apply Flow ───────────────────────────────────────────────────────────
@@ -1358,7 +1397,7 @@ fi
       else await this._applyWindows();
 
       this._status('✅ Tabs sorted!', 'success');
-      if (this.autoClose) setTimeout(() => window.close(), 2000);
+      if (this.autoClose) setTimeout(() => window.close(), 5000);
     } catch (e) {
       console.error('apply:', e);
       this._status(sanitizeErrorMessage(e.message), 'error');
